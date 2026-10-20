@@ -1,0 +1,15 @@
+{
+  "name": "clutch-server",
+  "version": "1.0.0",
+  "description": "CLUTCH - Real-Time Battle Royale Rock-Paper-Scissors Tournament Server",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
