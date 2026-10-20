@@ -1,8 +1,8 @@
 // client/src/components/KahootQrBanner.jsx
 // Prominent Kahoot-style QR code & room join banner for Admin Panel & Projector
 
-import React, { useState, useEffect } from 'react';
-import QRCode from 'qrcode';
+import React, { useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { QrCode, Copy, Check, ExternalLink, Users, Flame, Maximize2, X } from 'lucide-react';
 import { sound } from '../utils/audio';
 
@@ -12,7 +12,6 @@ export default function KahootQrBanner({
   players = [],
   isProjector = false
 }) {
-  const [qrDataUrl, setQrDataUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [isFullScreenQr, setIsFullScreenQr] = useState(false);
 
@@ -36,19 +35,6 @@ export default function KahootQrBanner({
   } catch (e) {}
 
   const joinUrl = `${window.location.protocol}//${host}/join${serverQuery}`;
-
-  useEffect(() => {
-    QRCode.toDataURL(joinUrl, {
-      width: 320,
-      margin: 2,
-      color: {
-        dark: '#000000',
-        light: '#FFFFFF'
-      }
-    })
-      .then((url) => setQrDataUrl(url))
-      .catch((err) => console.error('Failed to generate QR Code:', err));
-  }, [joinUrl]);
 
   const handleCopy = () => {
     sound.playClick();
@@ -136,17 +122,16 @@ export default function KahootQrBanner({
             <div className="absolute -inset-2 bg-gradient-to-r from-[#FF5500] via-[#FF9F1C] to-[#FF5500] rounded-3xl blur-md opacity-50 group-hover:opacity-80 transition duration-300"></div>
             
             <div className="relative bg-white p-3.5 rounded-2xl shadow-2xl flex flex-col items-center border-4 border-orange-500">
-              {qrDataUrl ? (
-                <img
-                  src={qrDataUrl}
-                  alt="Scan to Join CLUTCH"
-                  className="w-44 h-44 sm:w-52 sm:h-52 object-contain rounded-lg"
+              <div className="w-44 h-44 sm:w-52 sm:h-52 flex items-center justify-center p-1 bg-white rounded-lg">
+                <QRCodeSVG
+                  value={joinUrl}
+                  size={isProjector ? 200 : 180}
+                  bgColor="#FFFFFF"
+                  fgColor="#000000"
+                  level="M"
+                  className="w-full h-full object-contain"
                 />
-              ) : (
-                <div className="w-44 h-44 sm:w-52 sm:h-52 bg-zinc-200 animate-pulse rounded-lg flex items-center justify-center text-zinc-600 text-xs">
-                  Generating QR...
-                </div>
-              )}
+              </div>
               
               <div className="w-full mt-2 pt-2 border-t border-zinc-200 flex items-center justify-between text-[11px] font-bold text-zinc-800">
                 <span className="font-['Orbitron',sans-serif] tracking-wider text-[#FF5500]">
@@ -188,7 +173,16 @@ export default function KahootQrBanner({
             </div>
 
             <div className="bg-white p-6 rounded-3xl inline-block shadow-[0_0_60px_rgba(255,85,0,0.6)] border-4 border-orange-500">
-              <img src={qrDataUrl} alt="Join QR" className="w-72 h-72 sm:w-80 sm:h-80 object-contain mx-auto" />
+              <div className="w-72 h-72 sm:w-80 sm:h-80 mx-auto flex items-center justify-center p-2 bg-white">
+                <QRCodeSVG
+                  value={joinUrl}
+                  size={280}
+                  bgColor="#FFFFFF"
+                  fgColor="#000000"
+                  level="M"
+                  className="w-full h-full object-contain"
+                />
+              </div>
               <p className="mt-3 text-sm font-mono font-black text-black break-all">
                 {joinUrl}
               </p>
