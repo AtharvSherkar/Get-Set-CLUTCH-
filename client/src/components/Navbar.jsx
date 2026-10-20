@@ -1,13 +1,12 @@
 // client/src/components/Navbar.jsx
 import React, { useState } from 'react';
-import { Volume2, VolumeX, Shield, Users, Radio, Activity, Tv, Smartphone, Lock } from 'lucide-react';
+import { Volume2, VolumeX, Shield, Users, Radio, Activity, Tv, Smartphone } from 'lucide-react';
 import { sound } from '../utils/audio';
 
 export default function Navbar({
   tournamentState,
   currentPlayer,
   activeView = 'PLAYER', // 'PLAYER' | 'ADMIN' | 'PROJECTOR'
-  isAdminAuthenticated = false,
   onSelectView
 }) {
   const [isMuted, setIsMuted] = useState(sound.muted);
@@ -53,12 +52,12 @@ export default function Navbar({
           </div>
         </div>
 
-        {/* CENTER: STANDARD NAVIGATION (DOES NOT EXPOSE ADMIN BUTTON TO REGULAR PLAYERS) */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-black/60 border border-zinc-800">
+        {/* CENTER: HIGH-TECH NAVIGATION SWITCHER */}
+        <div className="flex items-center gap-1 sm:gap-1.5 p-1 rounded-xl bg-black/60 border border-zinc-800">
           <button
             type="button"
             onClick={() => onSelectView('PLAYER')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
               activeView === 'PLAYER'
                 ? 'bg-[#FF5500] text-white shadow-[0_0_15px_rgba(255,85,0,0.5)]'
                 : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
@@ -70,8 +69,21 @@ export default function Navbar({
 
           <button
             type="button"
+            onClick={() => onSelectView('ADMIN')}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+              activeView === 'ADMIN'
+                ? 'bg-[#FF5500] text-white shadow-[0_0_15px_rgba(255,85,0,0.5)]'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+            }`}
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>Admin Panel</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => onSelectView('PROJECTOR')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
               activeView === 'PROJECTOR'
                 ? 'bg-[#FF5500] text-white shadow-[0_0_15px_rgba(255,85,0,0.5)]'
                 : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
@@ -80,22 +92,6 @@ export default function Navbar({
             <Tv className="w-3.5 h-3.5" />
             <span>Big Screen</span>
           </button>
-
-          {/* Only shown if Admin is active or authenticated */}
-          {(activeView === 'ADMIN' || isAdminAuthenticated) && (
-            <button
-              type="button"
-              onClick={() => onSelectView('ADMIN')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                activeView === 'ADMIN'
-                  ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]'
-                  : 'text-red-400 hover:text-red-300 hover:bg-zinc-900'
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5 text-red-400" />
-              <span>Organizer</span>
-            </button>
-          )}
         </div>
 
         {/* RIGHT CONTROLS */}
@@ -111,18 +107,6 @@ export default function Navbar({
               {status === 'FINALE_STAGE' ? 'FINALE' : `R-${round}`}
             </span>
           </div>
-
-          {/* Discreet Organizer Access Link (small padlock) */}
-          {!isAdminAuthenticated && activeView !== 'ADMIN' && (
-            <button
-              type="button"
-              onClick={() => onSelectView('ADMIN')}
-              title="Organizer Admin Portal (PIN Protected)"
-              className="p-2 rounded-lg bg-zinc-900/40 hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 border border-zinc-800 transition cursor-pointer"
-            >
-              <Lock className="w-3.5 h-3.5" />
-            </button>
-          )}
 
           {/* Sound FX Toggle */}
           <button

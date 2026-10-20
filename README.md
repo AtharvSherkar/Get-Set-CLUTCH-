@@ -14,11 +14,10 @@ A full-stack, real-time multiplayer tournament web application titled **CLUTCH**
 - **Pre-Game Waiting Room:** Once players enter their nickname and student ID, they enter the waiting room where they see their verified contender card, live tournament dials, and interactive reaction bar.
 - **Instant Match Transition:** As soon as the host initiates Round 1, all waiting room contenders seamlessly transition into their active duel arenas!
 
-### 2. Guarded & Secured Admin Console
-- **PIN Gatekeeper:** The Organizer Admin Console is moved behind strict authentication. Standard player navigation links **do not expose** the admin console.
-- **Organizer Authentication:** Accessing `/#admin` prompts for the Organizer Security PIN (Default: `CLUTCH2026`).
-- **Backend Authorization Guard:** All backend orchestrations (`admin_start_round`, `admin_add_bots`, `admin_kick_player`, `admin_trigger_finale`, etc.) verify the authenticated socket before execution.
-- **One-Click Console Lock:** Organizers can lock and logout of the director desk at any time when stepping away from their laptop.
+### 2. Direct-Access Organizer Admin Console
+- **Instant Controls:** Accessing `/#admin` (or clicking the **"Admin Panel"** tab) immediately grants direct access to the master tournament director desk without any password or PIN prompt.
+- **Master Orchestrations:** Start rounds, pause/resume, spawn test bot contenders (`+4`, `+8`, `+16`), kick/revive players, and trigger the 2-player grand finale summons with 1-click.
+- **Live Pair & Move Monitoring:** Real-time visibility into all active duels, player choices, and match results.
 
 ### 3. Audio & Haptic Sync Engine
 - **Preloaded Audio Cues:**
@@ -74,4 +73,4 @@ npm run dev
 * **Vite Development Server (with HMR):** [http://localhost:5173](http://localhost:5173)
 * **Mobile / LAN Join URL:** `http://192.168.0.37:5173/#player?pin=742910`
 * **Auditorium Big Screen / Projector:** `http://localhost:5173/#projector`
-* **Secured Organizer Admin Desk:** `http://localhost:5173/#admin` (PIN: `CLUTCH2026`)
+* **Organizer Admin Desk:** `http://localhost:5173/#admin` (Direct Access, No Password Required)
