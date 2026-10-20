@@ -66,7 +66,7 @@ export default function RegistrationView({
             <div className="flex items-center gap-2">
               <Swords className="w-5 h-5 text-[#FF5500]" />
               <h2 className="text-lg font-bold font-['Space_Grotesk',sans-serif] text-white">
-                CONTENDER REGISTRATION
+                PLAYER JOIN • ENTER TOURNAMENT
               </h2>
             </div>
             <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-semibold">
@@ -140,12 +140,12 @@ export default function RegistrationView({
               </div>
             </div>
 
-            {/* Enter Button */}
+            {/* Join Button */}
             <button
               type="submit"
               className="w-full py-4 rounded-xl bg-gradient-to-r from-[#FF5500] to-[#FF8C00] hover:from-[#FF6B00] hover:to-[#FFA01C] text-white font-extrabold font-['Orbitron',sans-serif] tracking-wider text-base shadow-[0_0_25px_rgba(255,85,0,0.5)] hover:shadow-[0_0_35px_rgba(255,85,0,0.8)] transition transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>ENTER THE ARENA</span>
+              <span>JOIN TOURNAMENT</span>
               <ArrowRight className="w-5 h-5" />
             </button>
           </form>

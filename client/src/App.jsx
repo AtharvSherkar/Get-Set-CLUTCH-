@@ -25,14 +25,18 @@ export default function App() {
 
   const socketRef = useRef(null);
 
-  // Sync URL routing if user opens /admin, /#admin, /projector, /#projector
+  // Sync URL routing for /admin, /projector, /join, /waiting-room
   useEffect(() => {
     const handleRoute = () => {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
-      if (path === '/admin' || hash === '#admin') setActiveView('ADMIN');
-      else if (path === '/projector' || hash === '#projector') setActiveView('PROJECTOR');
-      else if (path === '/player' || hash === '#player') setActiveView('PLAYER');
+      if (path.includes('admin') || hash.includes('admin')) {
+        setActiveView('ADMIN');
+      } else if (path.includes('projector') || hash.includes('projector')) {
+        setActiveView('PROJECTOR');
+      } else {
+        setActiveView('PLAYER');
+      }
     };
     handleRoute();
     window.addEventListener('hashchange', handleRoute);
@@ -106,7 +110,14 @@ export default function App() {
   }, []);
 
   // User actions
-  const handleRegister = (data) => socket?.emit('register_player', data);
+  const handleRegister = (data) => {
+    socket?.emit('register_player', data);
+    try {
+      window.history.pushState(null, '', '/waiting-room');
+    } catch (e) {
+      // fallback
+    }
+  };
   const handleSubmitMove = (move) => socket?.emit('submit_move', { move });
   const handleSendReaction = (emoji, senderName) => socket?.emit('send_reaction', { emoji, senderName });
   const handleSendCheer = (text, senderName) => socket?.emit('send_cheer', { text, senderName });

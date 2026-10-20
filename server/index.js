@@ -7,6 +7,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { TournamentManager, TournamentStatus } from './tournamentManager.js';
 
+import os from 'os';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -14,6 +16,20 @@ const app = express();
 const httpServer = createServer(app);
 
 const PORT = process.env.PORT || 3001;
+
+function getLocalIp() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
+const SERVER_LAN_IP = getLocalIp();
 
 app.use(cors());
 app.use(express.json());
@@ -26,7 +42,7 @@ const io = new Server(httpServer, {
   }
 });
 
-const tournament = new TournamentManager(io);
+const tournament = new TournamentManager(io, { serverLanIp: SERVER_LAN_IP });
 
 // Express Routes
 app.get('/api/status', (req, res) => {
@@ -34,6 +50,8 @@ app.get('/api/status', (req, res) => {
     name: 'CLUTCH RPS Tournament Server',
     status: tournament.status,
     round: tournament.round,
+    serverLanIp: SERVER_LAN_IP,
+    port: PORT,
     stats: {
       total: tournament.players.size,
       active: tournament.getActiveContenders().length,

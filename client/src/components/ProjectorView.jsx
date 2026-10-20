@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { Trophy, Swords, Flame, Users, Radio, Sparkles, PhoneCall } from 'lucide-react';
+import KahootQrBanner from './KahootQrBanner';
 
 export default function ProjectorView({ tournamentState }) {
   const status = tournamentState?.status || 'REGISTRATION';
@@ -60,6 +61,16 @@ export default function ProjectorView({ tournamentState }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* KAHOOT-STYLE REGISTRATION QR BANNER ON BIG SCREEN */}
+      {status === 'REGISTRATION' && (
+        <KahootQrBanner
+          serverLanIp={tournamentState?.serverLanIp}
+          activeCount={activeCount}
+          players={tournamentState?.players || []}
+          isProjector={true}
+        />
       )}
 
       {/* GIANT STATS DIALS */}

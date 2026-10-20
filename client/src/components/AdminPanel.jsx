@@ -8,6 +8,7 @@ import {
   Check, X, Eye, EyeOff, Search, Trophy, Radio, PhoneCall,
   Flame, Zap, AlertTriangle, RefreshCw
 } from 'lucide-react';
+import KahootQrBanner from './KahootQrBanner';
 
 export default function AdminPanel({
   tournamentState,
@@ -105,6 +106,13 @@ export default function AdminPanel({
           </div>
         </div>
       </div>
+
+      {/* KAHOOT-STYLE LIVE QR CODE & PLAYER REGISTRATION BAR */}
+      <KahootQrBanner
+        serverLanIp={tournamentState?.serverLanIp}
+        activeCount={activeCount}
+        players={players}
+      />
 
       {/* PRIMARY ORCHESTRATION & BOT TOOLKIT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">

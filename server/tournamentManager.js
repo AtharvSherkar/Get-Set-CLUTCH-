@@ -27,8 +27,9 @@ const BOT_USERNAMES = [
 ];
 
 export class TournamentManager {
-  constructor(io) {
+  constructor(io, options = {}) {
     this.io = io;
+    this.serverLanIp = options.serverLanIp || 'localhost';
     this.status = TournamentStatus.REGISTRATION;
     this.round = 0;
     this.players = new Map(); // socketId -> Player
@@ -538,6 +539,7 @@ export class TournamentManager {
       currentBeat: this.currentBeat,
       isPaused: this.isPaused,
       autoAdvance: this.autoAdvance,
+      serverLanIp: this.serverLanIp,
       stats: {
         totalPlayers: this.players.size,
         activeCount: activeContenders.length,
