@@ -2,14 +2,30 @@
   "name": "clutch-battle-royale",
   "version": "1.0.0",
   "description": "CLUTCH - Real-Time Battle Royale Rock-Paper-Scissors Tournament Platform",
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
-    "server": "node server/index.js",
+    "postinstall": "npm install --prefix client && npm install --prefix server",
+    "build": "npm install --prefix client && npm run build --prefix client",
+    "build:client": "cd client && npm install && npm run build",
     "client": "npm run dev --prefix client",
-    "build": "npm run build --prefix client",
+    "server": "node server/index.js",
     "dev": "node dev-runner.js",
     "start": "node server/index.js"
   },
-  "keywords": ["rock-paper-scissors", "battle-royale", "esports", "clutch", "real-time"],
+  "keywords": [
+    "rock-paper-scissors",
+    "battle-royale",
+    "esports",
+    "clutch",
+    "real-time"
+  ],
   "author": "CLUTCH Gaming Committee",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
 }
