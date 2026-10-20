@@ -8,7 +8,6 @@ import { fileURLToPath } from 'url';
 import { TournamentManager, TournamentStatus } from './tournamentManager.js';
 
 import os from 'os';
-import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -96,8 +95,8 @@ io.on('connection', (socket) => {
   });
 
   // Reconnect Handling
-  socket.on('reconnect_player', ({ oldSocketId, name, studentId }) => {
-    const player = tournament.handleReconnect(oldSocketId, socket.id, { name, studentId });
+  socket.on('reconnect_player', ({ oldSocketId }) => {
+    const player = tournament.handleReconnect(oldSocketId, socket.id);
     if (player) {
       socket.emit('registered_success', player);
     }
@@ -177,18 +176,6 @@ io.on('connection', (socket) => {
     tournament.handleDisconnect(socket.id);
   });
 });
-
-// Serve client static build in production if available
-const distPath = path.join(__dirname, '../client/dist');
-if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath));
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
-      return next();
-    }
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
-}
 
 httpServer.listen(PORT, () => {
   console.log(`>>> CLUTCH Server live and roaring on http://localhost:${PORT}`);

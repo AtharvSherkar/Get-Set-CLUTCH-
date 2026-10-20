@@ -10,59 +10,15 @@ import ProjectorView from './components/ProjectorView';
 import FinaleCallModal from './components/FinaleCallModal';
 import { sound } from './utils/audio';
 
-// Dynamic Socket server URL resolution for Vercel, cloud hosting, and local development
-function getInitialSocketUrl() {
-  if (typeof window === 'undefined') return undefined;
-
-  // 1. Check URL query parameter: ?server=https://my-backend.railway.app
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const serverParam = params.get('server');
-    if (serverParam) {
-      localStorage.setItem('clutch_backend_url', serverParam);
-      return serverParam;
-    }
-  } catch (e) {}
-
-  // 2. Check localStorage for previously configured backend
-  try {
-    const saved = localStorage.getItem('clutch_backend_url');
-    if (saved) return saved;
-  } catch (e) {}
-
-  // 3. Environment variables configured in Vercel or .env
-  if (import.meta.env.VITE_SERVER_URL) return import.meta.env.VITE_SERVER_URL;
-  if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
-
-  // 4. Localhost or LAN dev environments (laptop or phone on local Wi-Fi)
-  const hostname = window.location.hostname;
-  const isLocal = hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname.startsWith('192.168.') ||
-    hostname.startsWith('10.') ||
-    hostname.endsWith('.local');
-
-  if (isLocal && window.location.port !== '3001') {
-    return `http://${hostname}:3001`;
-  }
-
-  // 5. Default to same origin for unified container hosting
-  return undefined;
-}
-
-const SOCKET_URL = getInitialSocketUrl();
+// Socket server URL configuration (connects to port 3001 when on Vite dev port 5173, otherwise same origin)
+const SOCKET_URL = window.location.port === '5173'
+  ? `http://${window.location.hostname}:3001`
+  : undefined;
 
 export default function App() {
   const [socket, setSocket] = useState(null);
   const [tournamentState, setTournamentState] = useState(null);
-  const [currentPlayer, setCurrentPlayer] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('clutch_player');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      return null;
-    }
-  });
+  const [currentPlayer, setCurrentPlayer] = useState(null);
   const [activeView, setActiveView] = useState('PLAYER'); // 'PLAYER' | 'ADMIN' | 'PROJECTOR'
   const [reactions, setReactions] = useState([]);
   const [cheers, setCheers] = useState([]);
@@ -94,9 +50,8 @@ export default function App() {
   // Initialize Socket connection
   useEffect(() => {
     const s = io(SOCKET_URL, {
-      reconnectionAttempts: 25,
-      reconnectionDelay: 1000,
-      transports: ['websocket', 'polling']
+      reconnectionAttempts: 15,
+      reconnectionDelay: 1000
     });
     socketRef.current = s;
     setSocket(s);
@@ -107,12 +62,7 @@ export default function App() {
       if (savedPlayer) {
         try {
           const parsed = JSON.parse(savedPlayer);
-          // Register / re-link player with server
-          s.emit('register_player', {
-            name: parsed.name,
-            studentId: parsed.studentId,
-            avatar: parsed.avatar
-          });
+          s.emit('reconnect_player', { oldSocketId: parsed.id });
         } catch (e) {
           console.error(e);
         }
@@ -125,10 +75,7 @@ export default function App() {
       setCurrentPlayer((prev) => {
         if (!prev) return null;
         const updated = state.players?.find(
-          (p) =>
-            p.id === prev.id ||
-            (prev.studentId && p.studentId === prev.studentId) ||
-            (prev.name && p.name === prev.name)
+          (p) => p.id === prev.id || (prev.name && p.name === prev.name)
         );
         if (updated) {
           sessionStorage.setItem('clutch_player', JSON.stringify(updated));
@@ -139,15 +86,15 @@ export default function App() {
     });
 
     s.on('registered_success', (player) => {
-      if (player) {
-        setCurrentPlayer(player);
-        sessionStorage.setItem('clutch_player', JSON.stringify(player));
-      }
+      setCurrentPlayer(player);
+      sessionStorage.setItem('clutch_player', JSON.stringify(player));
     });
 
     s.on('new_reaction', (reaction) => {
       if (!reaction || !reaction.id) return;
+      // Add only upon deliberate socket event
       setReactions((prev) => [...prev, reaction]);
+      // Ephemeral cleanup: completely remove after 2.2s animation so no ghost/auto-toggle emojis persist
       setTimeout(() => {
         setReactions((prev) => prev.filter((r) => r.id !== reaction.id));
       }, 2200);
@@ -164,35 +111,11 @@ export default function App() {
 
   // User actions
   const handleRegister = (data) => {
-    // 1. Immediately create local player record so user transitions to waiting room without any delay
-    const newPlayer = {
-      id: socket?.id || `contender_${Date.now()}`,
-      name: data.name,
-      studentId: data.studentId,
-      avatar: data.avatar || '🔥',
-      status: 'active',
-      isBot: false,
-      score: 0,
-      roundStreak: 0,
-      currentMatchId: null,
-      disconnectedAt: null,
-      acceptedFinale: false
-    };
-
-    setCurrentPlayer(newPlayer);
+    socket?.emit('register_player', data);
     try {
-      sessionStorage.setItem('clutch_player', JSON.stringify(newPlayer));
       window.history.pushState(null, '', '/waiting-room');
-    } catch (e) {}
-
-    // 2. Dispatch to server to register and show up in Admin Panel
-    if (socket?.connected) {
-      socket.emit('register_player', data);
-    } else {
-      socket?.emit('register_player', data);
-      socket?.once('connect', () => {
-        socket.emit('register_player', data);
-      });
+    } catch (e) {
+      // fallback
     }
   };
   const handleSubmitMove = (move) => socket?.emit('submit_move', { move });

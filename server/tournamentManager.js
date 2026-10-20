@@ -58,39 +58,18 @@ export class TournamentManager {
   }
 
   registerPlayer(socketId, { name, studentId, avatar, isBot = false }) {
-    const cleanName = (name || '').trim();
-    const cleanStudentId = (studentId ? String(studentId) : '').trim();
-
-    // 1. Check if player with this exact socketId already exists
-    let existing = this.players.get(socketId);
-
-    // 2. If not found by socketId, check if player with matching studentId or name exists (reconnection)
-    if (!existing && (cleanStudentId || cleanName)) {
-      for (const [oldId, p] of this.players.entries()) {
-        if (!p.isBot && ((cleanStudentId && p.studentId === cleanStudentId) || (cleanName && p.name === cleanName))) {
-          this.players.delete(oldId);
-          p.id = socketId;
-          p.disconnectedAt = null;
-          existing = p;
-          break;
-        }
-      }
-    }
-
+    const existing = this.players.get(socketId);
     if (existing) {
-      existing.name = cleanName || existing.name;
-      existing.studentId = cleanStudentId || existing.studentId;
+      existing.name = name || existing.name;
+      existing.studentId = studentId || existing.studentId;
       existing.avatar = avatar || existing.avatar;
-      existing.disconnectedAt = null;
-      this.players.set(socketId, existing);
-      this.broadcastState();
       return existing;
     }
 
     const player = {
       id: socketId,
-      name: cleanName || `Contender_${Math.floor(1000 + Math.random() * 9000)}`,
-      studentId: cleanStudentId || `STU-${Math.floor(1000 + Math.random() * 9000)}`,
+      name: (name || `Contender_${Math.floor(1000 + Math.random() * 9000)}`).trim(),
+      studentId: studentId ? String(studentId).trim() : `STU-${Math.floor(1000 + Math.random() * 9000)}`,
       avatar: avatar || '🔥',
       status: 'active', // 'active' | 'spectator'
       isBot: Boolean(isBot),
@@ -118,11 +97,11 @@ export class TournamentManager {
 
     player.disconnectedAt = Date.now();
 
-    // If tournament is actively running duels, 5-second grace period before auto-forfeit
-    if (this.status !== TournamentStatus.REGISTRATION) {
-      setTimeout(() => {
-        const p = this.players.get(socketId);
-        if (p && p.disconnectedAt && p.status === 'active') {
+    // 5-second grace period before auto-forfeit if tournament is active
+    setTimeout(() => {
+      const p = this.players.get(socketId);
+      if (p && p.disconnectedAt) {
+        if (this.status !== TournamentStatus.REGISTRATION && p.status === 'active') {
           // If in an active match, forfeit
           if (p.currentMatchId) {
             const match = this.matches.find(m => m.id === p.currentMatchId);
@@ -131,28 +110,16 @@ export class TournamentManager {
             }
           }
           p.status = 'spectator';
-          this.broadcastState();
+        } else if (this.status === TournamentStatus.REGISTRATION) {
+          this.players.delete(socketId);
         }
-      }, 5000);
-    } else {
-      // During REGISTRATION: DO NOT delete registered players!
-      // Keep them in the lobby so when they refresh or reopen their screen they remain in the tournament!
-      this.broadcastState();
-    }
+        this.broadcastState();
+      }
+    }, 5000);
   }
 
-  handleReconnect(oldSocketId, newSocketId, { name, studentId } = {}) {
-    let player = this.players.get(oldSocketId);
-    if (!player && (name || studentId)) {
-      for (const [id, p] of this.players.entries()) {
-        if (!p.isBot && ((studentId && p.studentId === studentId) || (name && p.name === name))) {
-          player = p;
-          oldSocketId = id;
-          break;
-        }
-      }
-    }
-
+  handleReconnect(oldSocketId, newSocketId) {
+    const player = this.players.get(oldSocketId);
     if (player) {
       this.players.delete(oldSocketId);
       player.id = newSocketId;
