@@ -4,28 +4,44 @@ import { io } from 'socket.io-client';
 import Navbar from './components/Navbar';
 import RegistrationView from './components/RegistrationView';
 import DuelArena from './components/DuelArena';
-import SpectatorLobby from './components/SpectatorLobby';
+import WaitingRoom from './components/WaitingRoom';
+import AdminPanel from './components/AdminPanel';
+import ProjectorView from './components/ProjectorView';
 import FinaleCallModal from './components/FinaleCallModal';
-import AdminConsole from './components/AdminConsole';
 import { sound } from './utils/audio';
 
-// Socket server URL configuration
-const SOCKET_URL = window.location.hostname === 'localhost' ? 'http://localhost:3001' : '/';
+// Socket server URL configuration (connects to port 3001 when on Vite dev port 5173, otherwise same origin)
+const SOCKET_URL = window.location.port === '5173'
+  ? `http://${window.location.hostname}:3001`
+  : undefined;
 
 export default function App() {
   const [socket, setSocket] = useState(null);
   const [tournamentState, setTournamentState] = useState(null);
   const [currentPlayer, setCurrentPlayer] = useState(null);
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [activeView, setActiveView] = useState('PLAYER'); // 'PLAYER' | 'ADMIN' | 'PROJECTOR'
   const [reactions, setReactions] = useState([]);
   const [cheers, setCheers] = useState([]);
 
   const socketRef = useRef(null);
 
+  // Sync hash routing if user opens /#admin or /#projector
+  useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === '#admin') setActiveView('ADMIN');
+      else if (hash === '#projector') setActiveView('PROJECTOR');
+      else if (hash === '#player') setActiveView('PLAYER');
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
   // Initialize Socket connection
   useEffect(() => {
     const s = io(SOCKET_URL, {
-      reconnectionAttempts: 10,
+      reconnectionAttempts: 15,
       reconnectionDelay: 1000
     });
     socketRef.current = s;
@@ -33,7 +49,6 @@ export default function App() {
 
     s.on('connect', () => {
       console.log('Connected to CLUTCH server:', s.id);
-      // Attempt reconnect if session player exists
       const savedPlayer = sessionStorage.getItem('clutch_player');
       if (savedPlayer) {
         try {
@@ -48,10 +63,11 @@ export default function App() {
     s.on('tournament_state', (state) => {
       setTournamentState(state);
 
-      // Keep currentPlayer synced with server state
       setCurrentPlayer((prev) => {
         if (!prev) return null;
-        const updated = state.players?.find((p) => p.id === prev.id || (prev.name && p.name === prev.name));
+        const updated = state.players?.find(
+          (p) => p.id === prev.id || (prev.name && p.name === prev.name)
+        );
         if (updated) {
           sessionStorage.setItem('clutch_player', JSON.stringify(updated));
           return updated;
@@ -78,42 +94,14 @@ export default function App() {
     };
   }, []);
 
-  // Player registration handler
-  const handleRegister = (data) => {
-    if (socket) {
-      socket.emit('register_player', data);
-    }
-  };
+  // User actions
+  const handleRegister = (data) => socket?.emit('register_player', data);
+  const handleSubmitMove = (move) => socket?.emit('submit_move', { move });
+  const handleSendReaction = (emoji, senderName) => socket?.emit('send_reaction', { emoji, senderName });
+  const handleSendCheer = (text, senderName) => socket?.emit('send_cheer', { text, senderName });
+  const handleAcceptFinale = () => socket?.emit('accept_finale');
 
-  // Move submission handler
-  const handleSubmitMove = (move) => {
-    if (socket) {
-      socket.emit('submit_move', { move });
-    }
-  };
-
-  // Reaction handler
-  const handleSendReaction = (emoji, senderName) => {
-    if (socket) {
-      socket.emit('send_reaction', { emoji, senderName });
-    }
-  };
-
-  // Cheer handler
-  const handleSendCheer = (text, senderName) => {
-    if (socket) {
-      socket.emit('send_cheer', { text, senderName });
-    }
-  };
-
-  // Finale accept handler
-  const handleAcceptFinale = () => {
-    if (socket) {
-      socket.emit('accept_finale');
-    }
-  };
-
-  // Admin Orchestration handlers
+  // Admin Orchestration actions
   const handleStartRound = () => socket?.emit('admin_start_round');
   const handleTogglePause = () => socket?.emit('admin_toggle_pause');
   const handleAddBots = (count) => socket?.emit('admin_add_bots', { count });
@@ -124,7 +112,7 @@ export default function App() {
   const handleResetTournament = () => socket?.emit('admin_reset_tournament');
   const handleToggleAutoAdvance = () => socket?.emit('admin_toggle_auto_advance');
 
-  // Identify current match for local player
+  // Current match resolution
   const currentMatch = tournamentState?.matches?.find(
     (m) =>
       currentPlayer &&
@@ -138,54 +126,84 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#09090B] text-white flex flex-col font-['Outfit',sans-serif] selection:bg-[#FF5500] selection:text-white">
-      {/* Top Esports Navigation Bar */}
+      {/* Top Navigation Bar with View Switcher */}
       <Navbar
         tournamentState={tournamentState}
         currentPlayer={currentPlayer}
-        onOpenAdmin={() => setIsAdminOpen(true)}
-        isAdminOpen={isAdminOpen}
+        activeView={activeView}
+        onSelectView={(view) => {
+          sound.playClick();
+          setActiveView(view);
+          window.location.hash = view.toLowerCase();
+        }}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col items-center justify-center">
-        {/* VIEW 1: REGISTRATION */}
-        {!currentPlayer ? (
-          <RegistrationView
-            onRegister={handleRegister}
+      {/* Main Body View Switching */}
+      <main className="flex-1 flex flex-col items-center justify-start pb-8">
+        {/* VIEW 1: ORGANIZER ADMIN PANEL */}
+        {activeView === 'ADMIN' && (
+          <AdminPanel
             tournamentState={tournamentState}
-            currentPlayer={currentPlayer}
+            onStartRound={handleStartRound}
+            onTogglePause={handleTogglePause}
+            onAddBots={handleAddBots}
+            onClearBots={handleClearBots}
+            onKickPlayer={handleKickPlayer}
+            onForceAdvance={handleForceAdvance}
+            onTriggerFinale={handleTriggerFinale}
+            onResetTournament={handleResetTournament}
+            onToggleAutoAdvance={handleToggleAutoAdvance}
           />
-        ) : (
-          /* VIEW 2: REGISTERED PLAYER / TOURNAMENT IN PROGRESS */
+        )}
+
+        {/* VIEW 2: AUDITORIUM PROJECTOR / BIG SCREEN MODE */}
+        {activeView === 'PROJECTOR' && (
+          <ProjectorView tournamentState={tournamentState} />
+        )}
+
+        {/* VIEW 3: PLAYER EXPERIENCE */}
+        {activeView === 'PLAYER' && (
           <>
-            {/* If in Active Match during Countdown / Evaluation */}
-            {currentPlayer.status === 'active' &&
-            currentMatch &&
-            (status === 'MATCHMAKING' ||
-              status === 'COUNTDOWN' ||
-              status === 'EVALUATING') ? (
-              <DuelArena
-                currentMatch={currentMatch}
-                currentPlayer={currentPlayer}
+            {/* If player is not yet registered */}
+            {!currentPlayer ? (
+              <RegistrationView
+                onRegister={handleRegister}
                 tournamentState={tournamentState}
-                onSubmitMove={handleSubmitMove}
+                currentPlayer={currentPlayer}
               />
             ) : (
-              /* Waiting Lobby & Spectator Feed for Eliminated or Waiting Players */
-              <SpectatorLobby
-                tournamentState={tournamentState}
-                currentPlayer={currentPlayer}
-                reactions={reactions}
-                cheers={cheers}
-                onSendReaction={handleSendReaction}
-                onSendCheer={handleSendCheer}
-              />
+              /* If player is registered */
+              <>
+                {/* Active Match Duel Arena: When player is in combat during Countdown or Evaluating */}
+                {currentPlayer.status === 'active' &&
+                currentMatch &&
+                (status === 'MATCHMAKING' ||
+                  status === 'COUNTDOWN' ||
+                  status === 'EVALUATING') ? (
+                  <DuelArena
+                    currentMatch={currentMatch}
+                    currentPlayer={currentPlayer}
+                    tournamentState={tournamentState}
+                    onSubmitMove={handleSubmitMove}
+                  />
+                ) : (
+                  /* Dedicated Waiting Room & Spectator Arena (before round 1, between rounds, or when eliminated) */
+                  <WaitingRoom
+                    tournamentState={tournamentState}
+                    currentPlayer={currentPlayer}
+                    reactions={reactions}
+                    cheers={cheers}
+                    onSendReaction={handleSendReaction}
+                    onSendCheer={handleSendCheer}
+                  />
+                )}
+              </>
             )}
           </>
         )}
       </main>
 
-      {/* 2-PLAYER FINALE SEQUENCE MODAL: "CALL FROM CLUTCH" */}
+      {/* 2-PLAYER FINALE SEQUENCE: "CALL FROM CLUTCH" */}
       {status === 'FINALE_STAGE' && isFinalist && (
         <FinaleCallModal
           finalists={tournamentState?.finalists}
@@ -193,22 +211,6 @@ export default function App() {
           onAcceptFinale={handleAcceptFinale}
         />
       )}
-
-      {/* ADMIN CONSOLE MODAL */}
-      <AdminConsole
-        tournamentState={tournamentState}
-        isOpen={isAdminOpen}
-        onClose={() => setIsAdminOpen(false)}
-        onStartRound={handleStartRound}
-        onTogglePause={handleTogglePause}
-        onAddBots={handleAddBots}
-        onClearBots={handleClearBots}
-        onKickPlayer={handleKickPlayer}
-        onForceAdvance={handleForceAdvance}
-        onTriggerFinale={handleTriggerFinale}
-        onResetTournament={handleResetTournament}
-        onToggleAutoAdvance={handleToggleAutoAdvance}
-      />
     </div>
   );
 }
