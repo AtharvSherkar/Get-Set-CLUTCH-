@@ -516,18 +516,15 @@ export class TournamentManager {
     this.broadcastState();
   }
 
-  addReaction(emoji, senderName = 'Spectator') {
+  addReaction(emoji, senderName = 'Contender') {
+    if (!emoji || typeof emoji !== 'string') return;
     const reaction = {
-      id: Math.random().toString(36).substring(2, 9),
-      emoji,
-      senderName,
-      x: Math.floor(10 + Math.random() * 80), // random horizontal drift percentage
+      id: `rx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      emoji: emoji.slice(0, 4),
+      senderName: (senderName || 'Contender').slice(0, 20),
+      x: Math.floor(15 + Math.random() * 70), // bounded horizontal percentage
       timestamp: Date.now()
     };
-    this.spectatorReactions.push(reaction);
-    if (this.spectatorReactions.length > 50) {
-      this.spectatorReactions.shift();
-    }
     this.io.emit('new_reaction', reaction);
   }
 

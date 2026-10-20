@@ -36,7 +36,12 @@ export default function WaitingRoom({
   const matches = tournamentState?.matches || [];
   const isSpectator = currentPlayer?.status === 'spectator';
 
+  const lastReactionRef = React.useRef(0);
+
   const handleEmojiClick = (emoji) => {
+    const now = Date.now();
+    if (now - lastReactionRef.current < 250) return; // Guard against accidental ghost/double click
+    lastReactionRef.current = now;
     sound.playClick();
     onSendReaction(emoji, currentPlayer?.name || 'Contender');
   };
@@ -56,18 +61,6 @@ export default function WaitingRoom({
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 py-6 space-y-6 relative">
-      {/* FLOATING EMOJI CANVAS OVERLAY */}
-      <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
-        {reactions.slice(-20).map((r) => (
-          <div
-            key={r.id}
-            style={{ left: `${r.x}%`, bottom: '90px' }}
-            className="absolute text-3xl sm:text-4xl animate-float-emoji filter drop-shadow-[0_0_12px_rgba(255,85,0,0.6)]"
-          >
-            {r.emoji}
-          </div>
-        ))}
-      </div>
 
       {/* CONTENDER COMBAT STATUS CARD (TOP) */}
       <div className="glass-panel-glow rounded-3xl p-6 border-2 border-orange-500/40 relative overflow-hidden shadow-2xl">

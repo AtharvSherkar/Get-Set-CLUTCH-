@@ -25,17 +25,22 @@ export default function App() {
 
   const socketRef = useRef(null);
 
-  // Sync hash routing if user opens /#admin or /#projector
+  // Sync URL routing if user opens /admin, /#admin, /projector, /#projector
   useEffect(() => {
-    const handleHash = () => {
+    const handleRoute = () => {
+      const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
-      if (hash === '#admin') setActiveView('ADMIN');
-      else if (hash === '#projector') setActiveView('PROJECTOR');
-      else if (hash === '#player') setActiveView('PLAYER');
+      if (path === '/admin' || hash === '#admin') setActiveView('ADMIN');
+      else if (path === '/projector' || hash === '#projector') setActiveView('PROJECTOR');
+      else if (path === '/player' || hash === '#player') setActiveView('PLAYER');
     };
-    handleHash();
-    window.addEventListener('hashchange', handleHash);
-    return () => window.removeEventListener('hashchange', handleHash);
+    handleRoute();
+    window.addEventListener('hashchange', handleRoute);
+    window.addEventListener('popstate', handleRoute);
+    return () => {
+      window.removeEventListener('hashchange', handleRoute);
+      window.removeEventListener('popstate', handleRoute);
+    };
   }, []);
 
   // Initialize Socket connection
@@ -82,7 +87,13 @@ export default function App() {
     });
 
     s.on('new_reaction', (reaction) => {
-      setReactions((prev) => [...prev.slice(-30), reaction]);
+      if (!reaction || !reaction.id) return;
+      // Add only upon deliberate socket event
+      setReactions((prev) => [...prev, reaction]);
+      // Ephemeral cleanup: completely remove after 2.2s animation so no ghost/auto-toggle emojis persist
+      setTimeout(() => {
+        setReactions((prev) => prev.filter((r) => r.id !== reaction.id));
+      }, 2200);
     });
 
     s.on('new_cheer', (cheer) => {
@@ -210,6 +221,21 @@ export default function App() {
           currentPlayer={currentPlayer}
           onAcceptFinale={handleAcceptFinale}
         />
+      )}
+
+      {/* GLOBAL EPHEMERAL REACTION EMOJIS (Appears ONLY on active user tap, auto-purged on finish) */}
+      {reactions.length > 0 && (
+        <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+          {reactions.map((r) => (
+            <div
+              key={r.id}
+              style={{ left: `${r.x}%`, bottom: '90px' }}
+              className="absolute text-3xl sm:text-4xl animate-float-emoji filter drop-shadow-[0_0_12px_rgba(255,85,0,0.6)]"
+            >
+              {r.emoji}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
