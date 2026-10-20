@@ -34,9 +34,16 @@ function getInitialSocketUrl() {
   if (import.meta.env.VITE_SERVER_URL) return import.meta.env.VITE_SERVER_URL;
   if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
 
-  // 4. Default for Vite dev server on port 5173
-  if (window.location.port === '5173') {
-    return `http://${window.location.hostname}:3001`;
+  // 4. Localhost or LAN dev environments (laptop or phone on local Wi-Fi)
+  const hostname = window.location.hostname;
+  const isLocal = hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('10.') ||
+    hostname.endsWith('.local');
+
+  if (isLocal && window.location.port !== '3001') {
+    return `http://${hostname}:3001`;
   }
 
   // 5. Default to same origin for unified container hosting
@@ -48,7 +55,14 @@ const SOCKET_URL = getInitialSocketUrl();
 export default function App() {
   const [socket, setSocket] = useState(null);
   const [tournamentState, setTournamentState] = useState(null);
-  const [currentPlayer, setCurrentPlayer] = useState(null);
+  const [currentPlayer, setCurrentPlayer] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('clutch_player');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [activeView, setActiveView] = useState('PLAYER'); // 'PLAYER' | 'ADMIN' | 'PROJECTOR'
   const [reactions, setReactions] = useState([]);
   const [cheers, setCheers] = useState([]);
@@ -80,8 +94,9 @@ export default function App() {
   // Initialize Socket connection
   useEffect(() => {
     const s = io(SOCKET_URL, {
-      reconnectionAttempts: 15,
-      reconnectionDelay: 1000
+      reconnectionAttempts: 25,
+      reconnectionDelay: 1000,
+      transports: ['websocket', 'polling']
     });
     socketRef.current = s;
     setSocket(s);
@@ -92,7 +107,12 @@ export default function App() {
       if (savedPlayer) {
         try {
           const parsed = JSON.parse(savedPlayer);
-          s.emit('reconnect_player', { oldSocketId: parsed.id });
+          // Register / re-link player with server
+          s.emit('register_player', {
+            name: parsed.name,
+            studentId: parsed.studentId,
+            avatar: parsed.avatar
+          });
         } catch (e) {
           console.error(e);
         }
@@ -105,7 +125,10 @@ export default function App() {
       setCurrentPlayer((prev) => {
         if (!prev) return null;
         const updated = state.players?.find(
-          (p) => p.id === prev.id || (prev.name && p.name === prev.name)
+          (p) =>
+            p.id === prev.id ||
+            (prev.studentId && p.studentId === prev.studentId) ||
+            (prev.name && p.name === prev.name)
         );
         if (updated) {
           sessionStorage.setItem('clutch_player', JSON.stringify(updated));
@@ -116,15 +139,15 @@ export default function App() {
     });
 
     s.on('registered_success', (player) => {
-      setCurrentPlayer(player);
-      sessionStorage.setItem('clutch_player', JSON.stringify(player));
+      if (player) {
+        setCurrentPlayer(player);
+        sessionStorage.setItem('clutch_player', JSON.stringify(player));
+      }
     });
 
     s.on('new_reaction', (reaction) => {
       if (!reaction || !reaction.id) return;
-      // Add only upon deliberate socket event
       setReactions((prev) => [...prev, reaction]);
-      // Ephemeral cleanup: completely remove after 2.2s animation so no ghost/auto-toggle emojis persist
       setTimeout(() => {
         setReactions((prev) => prev.filter((r) => r.id !== reaction.id));
       }, 2200);
@@ -141,11 +164,35 @@ export default function App() {
 
   // User actions
   const handleRegister = (data) => {
-    socket?.emit('register_player', data);
+    // 1. Immediately create local player record so user transitions to waiting room without any delay
+    const newPlayer = {
+      id: socket?.id || `contender_${Date.now()}`,
+      name: data.name,
+      studentId: data.studentId,
+      avatar: data.avatar || '🔥',
+      status: 'active',
+      isBot: false,
+      score: 0,
+      roundStreak: 0,
+      currentMatchId: null,
+      disconnectedAt: null,
+      acceptedFinale: false
+    };
+
+    setCurrentPlayer(newPlayer);
     try {
+      sessionStorage.setItem('clutch_player', JSON.stringify(newPlayer));
       window.history.pushState(null, '', '/waiting-room');
-    } catch (e) {
-      // fallback
+    } catch (e) {}
+
+    // 2. Dispatch to server to register and show up in Admin Panel
+    if (socket?.connected) {
+      socket.emit('register_player', data);
+    } else {
+      socket?.emit('register_player', data);
+      socket?.once('connect', () => {
+        socket.emit('register_player', data);
+      });
     }
   };
   const handleSubmitMove = (move) => socket?.emit('submit_move', { move });

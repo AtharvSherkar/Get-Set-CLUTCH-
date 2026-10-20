@@ -96,8 +96,8 @@ io.on('connection', (socket) => {
   });
 
   // Reconnect Handling
-  socket.on('reconnect_player', ({ oldSocketId }) => {
-    const player = tournament.handleReconnect(oldSocketId, socket.id);
+  socket.on('reconnect_player', ({ oldSocketId, name, studentId }) => {
+    const player = tournament.handleReconnect(oldSocketId, socket.id, { name, studentId });
     if (player) {
       socket.emit('registered_success', player);
     }
