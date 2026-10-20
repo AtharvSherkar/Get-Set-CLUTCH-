@@ -22,7 +22,7 @@ export default function Navbar({
   const round = tournamentState?.round || 0;
 
   return (
-    <header className="sticky top-0 z-40 w-full glass-panel border-b border-orange-500/20 px-3 sm:px-6 py-2.5 select-none">
+    <header className="sticky top-0 z-40 w-full glass-panel border-b border-orange-500/20 px-3 sm:px-6 py-2.5">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Brand / Logo */}
         <div
@@ -47,13 +47,13 @@ export default function Navbar({
               </span>
             </div>
             <p className="text-[10px] text-zinc-400 font-medium hidden sm:block">
-              Rock • Paper • Scissors Tournament
+              Rock • Paper • Scissors Battle Royale
             </p>
           </div>
         </div>
 
-        {/* CENTER: HIGH-TECH NAVIGATION SWITCHER */}
-        <div className="flex items-center gap-1 sm:gap-1.5 p-1 rounded-xl bg-black/60 border border-zinc-800">
+        {/* CENTER: HIGH-TECH VIEW SWITCHER */}
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-black/60 border border-zinc-800">
           <button
             type="button"
             onClick={() => onSelectView('PLAYER')}
@@ -64,7 +64,7 @@ export default function Navbar({
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span>Play Arena</span>
+            <span className="hidden xs:inline">Player</span>
           </button>
 
           <button
@@ -77,7 +77,7 @@ export default function Navbar({
             }`}
           >
             <Shield className="w-3.5 h-3.5" />
-            <span>Admin Panel</span>
+            <span className="hidden xs:inline">Admin</span>
           </button>
 
           <button
@@ -90,13 +90,13 @@ export default function Navbar({
             }`}
           >
             <Tv className="w-3.5 h-3.5" />
-            <span>Big Screen</span>
+            <span className="hidden xs:inline">Big Screen</span>
           </button>
         </div>
 
         {/* RIGHT CONTROLS */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Round Status Badge */}
+          {/* Status Badge */}
           <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-lg bg-black/50 border border-zinc-800 text-xs">
             <div className="flex items-center gap-1 text-green-400 font-medium">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>

@@ -2,75 +2,88 @@
 
 ![CLUTCH Logo](/assets/clutch-logo.png)
 
-A full-stack, real-time multiplayer tournament web application titled **CLUTCH**, designed for live college gaming events, club competitions, and esports stages. Features Kahoot-style QR code mobile joining, automated pairing, synchronized 4-beat duels with haptic feedback, 2D illustrated 5-finger hands, live spectator lounge with floating emojis, a PIN-secured master Admin Console, and the thrilling 2-player stage transition: **"Call from Clutch"**.
+A full-stack, real-time multiplayer tournament web application titled **CLUTCH**, designed for live college gaming events, club competitions, and esports stages. Features automated pairing, synchronized 4-beat duels, 2D illustrated 5-finger hands, live spectator lobby with floating emojis, a master Admin Console, and the thrilling 2-player stage transition: **"Call from Clutch"**.
 
 ---
 
 ## 🎮 Key Features & Mechanics
 
-### 1. Kahoot-Style QR Code & Player Join Flow
-- **Big Screen & Stage Feed:** The host/projector view displays a prominent live scannable **QR Code** alongside a bold **GAME PIN** (e.g., `742910`).
-- **Mobile Camera Scan:** When contenders scan the QR code with any smartphone camera, they are routed directly to the mobile pre-game lobby (`/#player?pin=742910`) with their Game PIN pre-filled.
-- **Pre-Game Waiting Room:** Once players enter their nickname and student ID, they enter the waiting room where they see their verified contender card, live tournament dials, and interactive reaction bar.
-- **Instant Match Transition:** As soon as the host initiates Round 1, all waiting room contenders seamlessly transition into their active duel arenas!
+### 1. Visual Identity & Brand Styling
+- **Logo Integration:** Organizer's high-voltage fiery fox / origami flame logo displayed across navigation, registration, and incoming stage call modals (`/assets/clutch-logo.png`).
+- **Esports Dark Palette:** Deep Matte Black (`#09090B`, `#0D0D11`, `#121212`), High-Voltage Orange (`#FF5500` / `#FF6B00`), Golden Amber (`#FF9F1C`), Neon Success Green (`#22C55E`), and Elimination Crimson (`#EF4444`).
+- **Typography & Glow:** `Orbitron`, `Space Grotesk`, and `Outfit` with glowing border cards and glassmorphic panels.
 
-### 2. Direct-Access Organizer Admin Console
-- **Instant Controls:** Accessing `/#admin` (or clicking the **"Admin Panel"** tab) immediately grants direct access to the master tournament director desk without any password or PIN prompt.
-- **Master Orchestrations:** Start rounds, pause/resume, spawn test bot contenders (`+4`, `+8`, `+16`), kick/revive players, and trigger the 2-player grand finale summons with 1-click.
-- **Live Pair & Move Monitoring:** Real-time visibility into all active duels, player choices, and match results.
-
-### 3. Audio & Haptic Sync Engine
-- **Preloaded Audio Cues:**
-  - `beat_tick.mp3`: Sharp percussive tick on visual cues **"ROCK"**, **"PAPER"**, **"SCISSOR"**.
-  - `clutch_lock.mp3`: Heavy impact sub-bass sound upon gesture reveal.
-  - `stage_call_ring.mp3`: Continuous phone ringtone looping during the Final 2 "Call from Clutch" screen.
-- **Graceful Unlocking:** Audio stems unlock on initial user tap/registration to handle browser autoplay policies.
-- **Mobile Haptics (`navigator.vibrate`):**
-  - **CLUTCH Beat:** Triggers `navigator.vibrate(120)` on mobile devices at the exact frame the "CLUTCH" beat hits.
-  - **Finalist Stage Call:** Executes a continuous phone buzz sequence `navigator.vibrate([400, 200, 400, 1000])` synced to the ringing audio until the green **"ACCEPT"** button is tapped!
-
-### 4. Duel Arena & 4-Beat Synchronized Countdowns
+### 2. Duel Arena & 4-Beat Synchronized Countdowns
 - **Mirrored 2D Human Hands:** Accurately proportioned 5-finger hands (Thumb, Index, Middle, Ring, Pinky) facing each other across the combat line of fire:
   - Bottom hand: Local Player.
   - Top hand: Opponent / Bot.
 - **Synchronized 4-Beat Countdown Sequence:**
-  1. **"ROCK"** (Hands shake & bump vertically with deep tick)
-  2. **"PAPER"** (Hands shake & bump with mid snap)
-  3. **"SCISSOR"** (Hands shake & bump with slicing chime)
-  4. **"CLUTCH!"** (Lock-in beat: Electric power chord + heavy bass drop + 120ms haptic vibration; hands simultaneously morph into chosen gestures: Rock Fist, Paper Open Palm, or Scissor V-cut!)
+  1. **"ROCK"** (Hands shake & bump vertically with deep sub-bass thud)
+  2. **"PAPER"** (Hands shake & bump with mid-frequency snap)
+  3. **"SCISSOR"** (Hands shake & bump with slicing treble chime)
+  4. **"CLUTCH!"** (Lock-in beat: Electric power chord shockwave; hands simultaneously morph into chosen gestures: Rock Fist, Paper Open Palm, or Scissor V-cut!)
 - **Thumb-Friendly Input Deck:** Floating cards (🪨 **Stone**, 📄 **Paper**, ✂️ **Scissor**) with instant lock indicator.
 
-### 5. Tournament Progression & Rules
+### 3. Tournament Progression & Rules
 - **Sequential Knock-Out Elimination:** Round after round until only 2 players remain.
 - **Draw Condition:** If both contenders in a pair make the same selection, **BOTH ADVANCE** to the next round waiting lobby!
 - **Odd Player Edge Case:** If an odd number enters a round, the system automatically pairs the remaining player with `CLUTCH_BOT`. Win or draw to advance; lose and you're eliminated.
 - **Disconnect Resilience:** 5-second grace period with auto-reconnect token matching before auto-forfeit.
 
-### 6. The 2-Player Finale Sequence: "Call from Clutch"
+### 4. The 2-Player Finale Sequence: "Call from Clutch"
 When the alive contender count reaches strictly **2 finalists**:
 1. Online duels halt immediately — finalists are **not** paired for an online match.
 2. Both finalists' screens dim with a realistic smartphone OS incoming call screen.
-3. Looping ringtone and continuous phone vibration `[400, 200, 400, 1000]` engage with a pulsating CLUTCH logo.
+3. Audio/haptic incoming call ringtone triggers with pulsing CLUTCH logo.
 4. **Caller ID:** `CALL FROM CLUTCH` (*"Stage summons incoming..."*).
 5. **Controls:** Exactly **ONE glowing green "ACCEPT" button** (no decline button).
 6. Tapping **ACCEPT**:
    - Explosive gold/orange celebratory confetti shower.
-   - Vibration and ringtone immediately cease.
    - Full-screen banner: **"CLUTCH IN THE ARENA"**.
    - Message: *"You have survived the digital gauntlet. Report to the main stage immediately for the physical showdown!"*
    - Holographic Digital VIP Stage Pass with Contender Name, Student ID, and Verification QR code to present to event anchors.
+
+### 5. Live Waiting Lobby & Spectator Feed
+- Real-time tournament bracket displaying active pairs and completed matches.
+- Live gauge: **Contenders Alive** vs **Spectators**.
+- **Floating Emoji Reaction Engine:** Audience taps 🔥, 💀, 👏, ⚡, 🤯, 🏆 to send real-time floating emojis across everyone's screens.
+- **Live Shoutout Feed:** Instant quick-cheers and custom messages ticker.
+
+### 6. Organizer Admin Console
+- Accessible via the **ADMIN** button on the top-right navbar.
+- Controls:
+  - **Start Round / Next Round** (auto-detects 2 finalists to trigger finale).
+  - **Pause / Resume** round.
+  - **Test Bot Spawner:** Click `+4 Bots`, `+8 Bots`, or `+16 Bots` to immediately simulate 8, 16, or 32 contenders for rehearsals or solo demos!
+  - **Manual Overrides:** Kick player, Revive/Force advance player, Trigger Finale manual override, and Reset Tournament.
 
 ---
 
 ## 🚀 Running Locally
 
-### Start Both Server & Client
-```powershell
+### Prerequisites
+- Node.js (v18+) and npm.
+
+### Quick Start (Single Command)
+```bash
+# 1. Clone repository
+git clone https://github.com/AtharvSherkar/Get-Set-CLUTCH-.git
+cd Get-Set-CLUTCH-
+
+# 2. Start both Server & Client
 npm run dev
 ```
 
-### URLs:
-* **Vite Development Server (with HMR):** [http://localhost:5173](http://localhost:5173)
-* **Mobile / LAN Join URL:** `http://192.168.0.37:5173/#player?pin=742910`
-* **Auditorium Big Screen / Projector:** `http://localhost:5173/#projector`
-* **Organizer Admin Desk:** `http://localhost:5173/#admin` (Direct Access, No Password Required)
+### Alternatively, Run Server & Client Individually:
+```bash
+# Start Backend Server (Port 3001)
+npm run server
+
+# Start Client Vite Dev Server (Port 5173)
+npm run client
+```
+
+### Accessing the App:
+- **Web App (Vite Dev):** [http://localhost:5173](http://localhost:5173)
+- **Production Server:** [http://localhost:3001](http://localhost:3001)
+- **Local Network / Mobile Phones:** Open `http://<YOUR_LOCAL_IP>:3001` or `http://<YOUR_LOCAL_IP>:5173` on any smartphone connected to the same Wi-Fi!

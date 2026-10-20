@@ -1,12 +1,12 @@
 // client/src/components/AdminPanel.jsx
-// Dedicated Organizer Admin Panel & Tournament Operations Desk (No Password Required)
+// Dedicated Organizer Admin Panel & Tournament Operations Console
 
 import React, { useState } from 'react';
 import { sound } from '../utils/audio';
 import {
   Shield, Play, Pause, RotateCcw, Bot, Swords, Users,
   Check, X, Eye, EyeOff, Search, Trophy, Radio, PhoneCall,
-  Flame, Zap, AlertTriangle, Hash, Settings
+  Flame, Zap, AlertTriangle, RefreshCw
 } from 'lucide-react';
 
 export default function AdminPanel({
@@ -19,19 +19,17 @@ export default function AdminPanel({
   onForceAdvance,
   onTriggerFinale,
   onResetTournament,
-  onToggleAutoAdvance,
-  onUpdateGamePin
+  onToggleAutoAdvance
 }) {
   const [confirmReset, setConfirmReset] = useState(false);
   const [revealMoves, setRevealMoves] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'SPECTATOR' | 'BOT'
 
   const status = tournamentState?.status || 'REGISTRATION';
   const round = tournamentState?.round || 0;
   const isPaused = tournamentState?.isPaused || false;
   const autoAdvance = tournamentState?.autoAdvance || false;
-  const gamePin = tournamentState?.gamePin || '742910';
   const activeCount = tournamentState?.stats?.activeCount || 0;
   const spectatorCount = tournamentState?.stats?.spectatorCount || 0;
   const totalCount = tournamentState?.stats?.totalPlayers || 0;
@@ -54,7 +52,7 @@ export default function AdminPanel({
   });
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6 select-none">
+    <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-6">
       {/* ADMIN CONTROL DECK HEADER */}
       <div className="glass-panel-glow rounded-2xl p-5 sm:p-6 border-2 border-orange-500/40 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
@@ -66,39 +64,44 @@ export default function AdminPanel({
               <h1 className="text-xl sm:text-2xl font-black font-['Orbitron',sans-serif] tracking-wider text-white">
                 TOURNAMENT DIRECTOR DESK
               </h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/40 uppercase">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/40 uppercase">
                 ADMIN CONSOLE
               </span>
             </div>
             <p className="text-xs text-zinc-400">
-              Direct Tournament Controls: Automated Matchmaking, Real-Time Round Orchestration & Stage Summons
+              Authoritative Master Control: Automated Matchmaking, Real-Time Round Orchestration & Stage Summons
             </p>
           </div>
         </div>
 
         {/* TOP STATUS GAUGES */}
-        <div className="flex items-center gap-3 sm:gap-4 self-stretch md:self-auto justify-between md:justify-start">
-          <div className="flex items-center gap-3 bg-black/60 px-4 py-2 rounded-xl border border-zinc-800">
-            <div className="text-center">
-              <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">STATUS</span>
-              <span className="text-xs sm:text-sm font-black text-orange-400 font-['Space_Grotesk',sans-serif]">
-                {status}
-              </span>
-            </div>
-            <div className="h-6 w-px bg-zinc-800"></div>
-            <div className="text-center">
-              <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">ROUND</span>
-              <span className="text-sm sm:text-base font-black text-white font-mono">
-                {round}
-              </span>
-            </div>
-            <div className="h-6 w-px bg-zinc-800"></div>
-            <div className="text-center">
-              <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">GAME PIN</span>
-              <span className="text-sm sm:text-base font-black text-orange-400 font-mono">
-                {gamePin}
-              </span>
-            </div>
+        <div className="flex items-center gap-3 sm:gap-4 bg-black/60 px-4 py-2 rounded-xl border border-zinc-800 self-stretch md:self-auto justify-between md:justify-start">
+          <div className="text-center">
+            <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">STATUS</span>
+            <span className="text-xs sm:text-sm font-black text-orange-400 font-['Space_Grotesk',sans-serif]">
+              {status}
+            </span>
+          </div>
+          <div className="h-6 w-px bg-zinc-800"></div>
+          <div className="text-center">
+            <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">ROUND</span>
+            <span className="text-sm sm:text-base font-black text-white font-mono">
+              {round}
+            </span>
+          </div>
+          <div className="h-6 w-px bg-zinc-800"></div>
+          <div className="text-center">
+            <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">CONTENDERS</span>
+            <span className="text-sm sm:text-base font-black text-green-400 font-mono">
+              {activeCount}
+            </span>
+          </div>
+          <div className="h-6 w-px bg-zinc-800"></div>
+          <div className="text-center">
+            <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">SPECTATORS</span>
+            <span className="text-sm sm:text-base font-black text-red-400 font-mono">
+              {spectatorCount}
+            </span>
           </div>
         </div>
       </div>
@@ -200,7 +203,7 @@ export default function AdminPanel({
           </div>
         </div>
 
-        {/* AI SIMULATION & BOT TOOLKIT (4 cols) */}
+        {/* TEST CONTENDER BOT ENGINE (4 cols) */}
         <div className="lg:col-span-4 glass-panel rounded-2xl p-5 border border-zinc-800 space-y-3.5 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
@@ -214,25 +217,25 @@ export default function AdminPanel({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2 pt-1">
+          <div className="flex flex-wrap gap-2 pt-2">
             <button
               type="button"
               onClick={() => onAddBots(4)}
-              className="flex-1 min-w-[70px] py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
+              className="flex-1 min-w-[70px] py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
             >
               +4 Bots
             </button>
             <button
               type="button"
               onClick={() => onAddBots(8)}
-              className="flex-1 min-w-[70px] py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
+              className="flex-1 min-w-[70px] py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
             >
               +8 Bots
             </button>
             <button
               type="button"
               onClick={() => onAddBots(16)}
-              className="flex-1 min-w-[70px] py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
+              className="flex-1 min-w-[70px] py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
             >
               +16 Bots
             </button>

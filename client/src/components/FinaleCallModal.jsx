@@ -15,18 +15,18 @@ export default function FinaleCallModal({
   const isFinalist = finalists.some((f) => f.id === currentPlayer?.id);
   const otherFinalist = finalists.find((f) => f.id !== currentPlayer?.id);
 
-  // Start incoming ringtone & phone vibration buzz sequence on mount if not accepted
+  // Start incoming ringtone on mount if not accepted
   useEffect(() => {
     if (!accepted) {
-      sound.startStageRingtoneAndBuzz();
+      sound.startRingtone();
     }
     return () => {
-      sound.stopStageRingtoneAndBuzz();
+      sound.stopRingtone();
     };
   }, [accepted]);
 
   const handleAccept = () => {
-    sound.stopStageRingtoneAndBuzz();
+    sound.stopRingtone();
     sound.playVictory();
     setAccepted(true);
     onAcceptFinale();

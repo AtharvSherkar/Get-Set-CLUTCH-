@@ -4,7 +4,6 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import path from 'path';
-import os from 'os';
 import { fileURLToPath } from 'url';
 import { TournamentManager, TournamentStatus } from './tournamentManager.js';
 
@@ -15,21 +14,6 @@ const app = express();
 const httpServer = createServer(app);
 
 const PORT = process.env.PORT || 3001;
-
-// Detect local IPv4 network address for QR Code mobile joining
-function getLocalIp() {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        return iface.address;
-      }
-    }
-  }
-  return 'localhost';
-}
-
-const SERVER_LAN_IP = getLocalIp();
 
 app.use(cors());
 app.use(express.json());
@@ -50,9 +34,6 @@ app.get('/api/status', (req, res) => {
     name: 'CLUTCH RPS Tournament Server',
     status: tournament.status,
     round: tournament.round,
-    gamePin: tournament.gamePin,
-    lanIp: SERVER_LAN_IP,
-    port: PORT,
     stats: {
       total: tournament.players.size,
       active: tournament.getActiveContenders().length,
@@ -78,18 +59,16 @@ app.get('*', (req, res, next) => {
   const indexPath = path.join(clientDistPath, 'index.html');
   res.sendFile(indexPath, (err) => {
     if (err) {
-      res.status(200).send('CLUTCH Server running. Connect Vite client on port 5173.');
+      // In dev mode when client isn't built yet, respond nicely
+      res.status(200).send('CLUTCH Server is running! Connect Vite client on port 5173.');
     }
   });
 });
 
 // Socket.IO Handlers
 io.on('connection', (socket) => {
-  // Send current state and network host info upon connecting
-  socket.emit('tournament_state', {
-    ...tournament.getPublicState(),
-    serverLanIp: SERVER_LAN_IP
-  });
+  // Send current state upon connecting
+  socket.emit('tournament_state', tournament.getPublicState());
 
   // Player Registration
   socket.on('register_player', (data) => {
@@ -132,9 +111,7 @@ io.on('connection', (socket) => {
     io.emit('new_cheer', cheer);
   });
 
-  // -------------------------------------------------------------
-  // OPEN ADMIN CONTROLS (No password/PIN required)
-  // -------------------------------------------------------------
+  // Admin Controls
   socket.on('admin_start_round', () => {
     const result = tournament.startRound();
     if (result?.error) {
@@ -176,13 +153,6 @@ io.on('connection', (socket) => {
     tournament.broadcastState();
   });
 
-  socket.on('admin_update_game_pin', ({ newPin }) => {
-    if (newPin && typeof newPin === 'string') {
-      tournament.gamePin = newPin.trim();
-      tournament.broadcastState();
-    }
-  });
-
   // Disconnect
   socket.on('disconnect', () => {
     tournament.handleDisconnect(socket.id);
@@ -191,6 +161,4 @@ io.on('connection', (socket) => {
 
 httpServer.listen(PORT, () => {
   console.log(`>>> CLUTCH Server live and roaring on http://localhost:${PORT}`);
-  console.log(`>>> LAN Access URL: http://${SERVER_LAN_IP}:${PORT}`);
-  console.log(`>>> Admin Access: Open (No Password Required)`);
 });

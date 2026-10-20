@@ -31,7 +31,7 @@ export default function App() {
       const hash = window.location.hash.toLowerCase();
       if (hash === '#admin') setActiveView('ADMIN');
       else if (hash === '#projector') setActiveView('PROJECTOR');
-      else if (hash === '#player' || hash === '' || hash.startsWith('#join')) setActiveView('PLAYER');
+      else if (hash === '#player') setActiveView('PLAYER');
     };
     handleHash();
     window.addEventListener('hashchange', handleHash);
@@ -49,8 +49,6 @@ export default function App() {
 
     s.on('connect', () => {
       console.log('Connected to CLUTCH server:', s.id);
-
-      // Reconnect player if exists
       const savedPlayer = sessionStorage.getItem('clutch_player');
       if (savedPlayer) {
         try {
@@ -103,7 +101,7 @@ export default function App() {
   const handleSendCheer = (text, senderName) => socket?.emit('send_cheer', { text, senderName });
   const handleAcceptFinale = () => socket?.emit('accept_finale');
 
-  // Admin Orchestration actions (Direct, no password required)
+  // Admin Orchestration actions
   const handleStartRound = () => socket?.emit('admin_start_round');
   const handleTogglePause = () => socket?.emit('admin_toggle_pause');
   const handleAddBots = (count) => socket?.emit('admin_add_bots', { count });
@@ -113,7 +111,6 @@ export default function App() {
   const handleTriggerFinale = () => socket?.emit('admin_trigger_finale');
   const handleResetTournament = () => socket?.emit('admin_reset_tournament');
   const handleToggleAutoAdvance = () => socket?.emit('admin_toggle_auto_advance');
-  const handleUpdateGamePin = (newPin) => socket?.emit('admin_update_game_pin', { newPin });
 
   // Current match resolution
   const currentMatch = tournamentState?.matches?.find(
@@ -143,7 +140,7 @@ export default function App() {
 
       {/* Main Body View Switching */}
       <main className="flex-1 flex flex-col items-center justify-start pb-8">
-        {/* VIEW 1: ORGANIZER ADMIN PANEL (DIRECT ACCESS, NO PASSWORD REQUIRED) */}
+        {/* VIEW 1: ORGANIZER ADMIN PANEL */}
         {activeView === 'ADMIN' && (
           <AdminPanel
             tournamentState={tournamentState}
@@ -156,11 +153,10 @@ export default function App() {
             onTriggerFinale={handleTriggerFinale}
             onResetTournament={handleResetTournament}
             onToggleAutoAdvance={handleToggleAutoAdvance}
-            onUpdateGamePin={handleUpdateGamePin}
           />
         )}
 
-        {/* VIEW 2: AUDITORIUM PROJECTOR / BIG SCREEN MODE (WITH KAHOOT-STYLE LIVE QR CODE) */}
+        {/* VIEW 2: AUDITORIUM PROJECTOR / BIG SCREEN MODE */}
         {activeView === 'PROJECTOR' && (
           <ProjectorView tournamentState={tournamentState} />
         )}
