@@ -34,10 +34,12 @@ export default function DuelArena({
     (matchResult === 'P1_WIN' && !isP1) || (matchResult === 'P2_WIN' && isP1);
   const isDraw = matchResult === 'DRAW';
 
-  // Handle beat sound effects
+  // Handle beat sound effects and haptic vibration sync
   useEffect(() => {
-    if (['ROCK', 'PAPER', 'SCISSOR', 'CLUTCH'].includes(currentBeat)) {
-      sound.playBeat(currentBeat);
+    if (['ROCK', 'PAPER', 'SCISSOR'].includes(currentBeat)) {
+      sound.playBeatTick(currentBeat);
+    } else if (currentBeat === 'CLUTCH') {
+      sound.playClutchLock(); // Plays heavy impact bass + executes navigator.vibrate(120) on mobile
     }
   }, [currentBeat]);
 

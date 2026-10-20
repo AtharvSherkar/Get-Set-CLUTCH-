@@ -39,6 +39,7 @@ export class TournamentManager {
     this.isPaused = false;
     this.finalists = [];
     this.spectatorReactions = [];
+    this.gamePin = '742910';
     this.autoAdvance = false;
     this.roundHistory = [];
   }
@@ -537,6 +538,7 @@ export class TournamentManager {
 
     return {
       status: this.status,
+      gamePin: this.gamePin,
       round: this.round,
       currentBeat: this.currentBeat,
       isPaused: this.isPaused,

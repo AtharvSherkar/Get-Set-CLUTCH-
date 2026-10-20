@@ -20,6 +20,9 @@ export default function App() {
   const [tournamentState, setTournamentState] = useState(null);
   const [currentPlayer, setCurrentPlayer] = useState(null);
   const [activeView, setActiveView] = useState('PLAYER'); // 'PLAYER' | 'ADMIN' | 'PROJECTOR'
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(
+    () => sessionStorage.getItem('clutch_admin_auth') === 'true'
+  );
   const [reactions, setReactions] = useState([]);
   const [cheers, setCheers] = useState([]);
 
@@ -31,7 +34,7 @@ export default function App() {
       const hash = window.location.hash.toLowerCase();
       if (hash === '#admin') setActiveView('ADMIN');
       else if (hash === '#projector') setActiveView('PROJECTOR');
-      else if (hash === '#player') setActiveView('PLAYER');
+      else if (hash === '#player' || hash === '' || hash.startsWith('#join')) setActiveView('PLAYER');
     };
     handleHash();
     window.addEventListener('hashchange', handleHash);
@@ -49,6 +52,14 @@ export default function App() {
 
     s.on('connect', () => {
       console.log('Connected to CLUTCH server:', s.id);
+      
+      // Auto-relogin admin if token in session
+      const savedAdminAuth = sessionStorage.getItem('clutch_admin_pin');
+      if (savedAdminAuth) {
+        s.emit('admin_login', { pin: savedAdminAuth });
+      }
+
+      // Reconnect player if exists
       const savedPlayer = sessionStorage.getItem('clutch_player');
       if (savedPlayer) {
         try {
@@ -81,6 +92,23 @@ export default function App() {
       sessionStorage.setItem('clutch_player', JSON.stringify(player));
     });
 
+    s.on('admin_auth_success', () => {
+      setIsAdminAuthenticated(true);
+      sessionStorage.setItem('clutch_admin_auth', 'true');
+    });
+
+    s.on('admin_auth_failed', () => {
+      setIsAdminAuthenticated(false);
+      sessionStorage.removeItem('clutch_admin_auth');
+      sessionStorage.removeItem('clutch_admin_pin');
+    });
+
+    s.on('admin_logout_success', () => {
+      setIsAdminAuthenticated(false);
+      sessionStorage.removeItem('clutch_admin_auth');
+      sessionStorage.removeItem('clutch_admin_pin');
+    });
+
     s.on('new_reaction', (reaction) => {
       setReactions((prev) => [...prev.slice(-30), reaction]);
     });
@@ -102,6 +130,31 @@ export default function App() {
   const handleAcceptFinale = () => socket?.emit('accept_finale');
 
   // Admin Orchestration actions
+  const handleAdminLogin = (pin, callback) => {
+    if (!socket) return;
+    sessionStorage.setItem('clutch_admin_pin', pin);
+    socket.emit('admin_login', { pin });
+
+    const handleSuccess = () => {
+      socket.off('admin_auth_failed', handleFailed);
+      callback?.(true);
+    };
+    const handleFailed = () => {
+      socket.off('admin_auth_success', handleSuccess);
+      callback?.(false);
+    };
+
+    socket.once('admin_auth_success', handleSuccess);
+    socket.once('admin_auth_failed', handleFailed);
+  };
+
+  const handleAdminLogout = () => {
+    socket?.emit('admin_logout');
+    setIsAdminAuthenticated(false);
+    sessionStorage.removeItem('clutch_admin_auth');
+    sessionStorage.removeItem('clutch_admin_pin');
+  };
+
   const handleStartRound = () => socket?.emit('admin_start_round');
   const handleTogglePause = () => socket?.emit('admin_toggle_pause');
   const handleAddBots = (count) => socket?.emit('admin_add_bots', { count });
@@ -111,6 +164,7 @@ export default function App() {
   const handleTriggerFinale = () => socket?.emit('admin_trigger_finale');
   const handleResetTournament = () => socket?.emit('admin_reset_tournament');
   const handleToggleAutoAdvance = () => socket?.emit('admin_toggle_auto_advance');
+  const handleUpdateGamePin = (newPin) => socket?.emit('admin_update_game_pin', { newPin });
 
   // Current match resolution
   const currentMatch = tournamentState?.matches?.find(
@@ -126,11 +180,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#09090B] text-white flex flex-col font-['Outfit',sans-serif] selection:bg-[#FF5500] selection:text-white">
-      {/* Top Navigation Bar with View Switcher */}
+      {/* Top Navigation Bar with Secured Route Switcher */}
       <Navbar
         tournamentState={tournamentState}
         currentPlayer={currentPlayer}
         activeView={activeView}
+        isAdminAuthenticated={isAdminAuthenticated}
         onSelectView={(view) => {
           sound.playClick();
           setActiveView(view);
@@ -140,10 +195,13 @@ export default function App() {
 
       {/* Main Body View Switching */}
       <main className="flex-1 flex flex-col items-center justify-start pb-8">
-        {/* VIEW 1: ORGANIZER ADMIN PANEL */}
+        {/* VIEW 1: ORGANIZER ADMIN PANEL (PROTECTED BY PIN GATEKEEPER) */}
         {activeView === 'ADMIN' && (
           <AdminPanel
             tournamentState={tournamentState}
+            isAdminAuthenticated={isAdminAuthenticated}
+            onAdminLogin={handleAdminLogin}
+            onAdminLogout={handleAdminLogout}
             onStartRound={handleStartRound}
             onTogglePause={handleTogglePause}
             onAddBots={handleAddBots}
@@ -153,10 +211,11 @@ export default function App() {
             onTriggerFinale={handleTriggerFinale}
             onResetTournament={handleResetTournament}
             onToggleAutoAdvance={handleToggleAutoAdvance}
+            onUpdateGamePin={handleUpdateGamePin}
           />
         )}
 
-        {/* VIEW 2: AUDITORIUM PROJECTOR / BIG SCREEN MODE */}
+        {/* VIEW 2: AUDITORIUM PROJECTOR / BIG SCREEN MODE (WITH KAHOOT-STYLE LIVE QR CODE) */}
         {activeView === 'PROJECTOR' && (
           <ProjectorView tournamentState={tournamentState} />
         )}

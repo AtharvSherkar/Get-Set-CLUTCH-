@@ -1,16 +1,20 @@
 // client/src/components/AdminPanel.jsx
-// Dedicated Organizer Admin Panel & Tournament Operations Console
+// Secured Organizer Admin Panel with PIN Gatekeeper & Tournament Operations Desk
 
 import React, { useState } from 'react';
 import { sound } from '../utils/audio';
 import {
   Shield, Play, Pause, RotateCcw, Bot, Swords, Users,
   Check, X, Eye, EyeOff, Search, Trophy, Radio, PhoneCall,
-  Flame, Zap, AlertTriangle, RefreshCw
+  Flame, Zap, AlertTriangle, Lock, Unlock, KeyRound, ArrowRight,
+  LogOut, Hash, Settings
 } from 'lucide-react';
 
 export default function AdminPanel({
   tournamentState,
+  isAdminAuthenticated,
+  onAdminLogin,
+  onAdminLogout,
   onStartRound,
   onTogglePause,
   onAddBots,
@@ -19,23 +23,110 @@ export default function AdminPanel({
   onForceAdvance,
   onTriggerFinale,
   onResetTournament,
-  onToggleAutoAdvance
+  onToggleAutoAdvance,
+  onUpdateGamePin
 }) {
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const [revealMoves, setRevealMoves] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'SPECTATOR' | 'BOT'
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [editingPin, setEditingPin] = useState(false);
+  const [customGamePin, setCustomGamePin] = useState(tournamentState?.gamePin || '742910');
 
   const status = tournamentState?.status || 'REGISTRATION';
   const round = tournamentState?.round || 0;
   const isPaused = tournamentState?.isPaused || false;
   const autoAdvance = tournamentState?.autoAdvance || false;
+  const gamePin = tournamentState?.gamePin || '742910';
   const activeCount = tournamentState?.stats?.activeCount || 0;
   const spectatorCount = tournamentState?.stats?.spectatorCount || 0;
   const totalCount = tournamentState?.stats?.totalPlayers || 0;
   const matches = tournamentState?.matches || [];
   const players = tournamentState?.players || [];
   const currentBeat = tournamentState?.currentBeat || 'READY';
+
+  // Handle Admin PIN Submission
+  const handlePinSubmit = (e) => {
+    e?.preventDefault();
+    if (!pinInput.trim()) {
+      setPinError('Please enter the Organizer PIN');
+      return;
+    }
+    sound.playClick();
+    onAdminLogin(pinInput.trim(), (success) => {
+      if (!success) {
+        setPinError('Invalid Organizer PIN. Access Denied.');
+      } else {
+        setPinError('');
+      }
+    });
+  };
+
+  // If not authenticated, display the Security Gatekeeper Screen
+  if (!isAdminAuthenticated) {
+    return (
+      <div className="w-full max-w-md mx-auto px-4 py-12 sm:py-20 select-none">
+        <div className="glass-panel-glow rounded-3xl p-6 sm:p-8 border-2 border-red-500/40 text-center space-y-6 shadow-[0_0_60px_rgba(239,68,68,0.25)] relative overflow-hidden">
+          {/* Background alert glow */}
+          <div className="absolute top-0 right-0 w-48 h-48 bg-red-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-red-950/60 border-2 border-red-500/50 flex items-center justify-center text-red-400 shadow-xl">
+            <Lock className="w-8 h-8 animate-pulse" />
+          </div>
+
+          <div className="space-y-1.5">
+            <h1 className="text-xl sm:text-2xl font-black font-['Orbitron',sans-serif] text-white tracking-wider">
+              ORGANIZER ACCESS RESTRICTED
+            </h1>
+            <p className="text-xs text-zinc-400 max-w-xs mx-auto">
+              The Tournament Director Console is password-guarded for event referees & anchors.
+            </p>
+          </div>
+
+          <form onSubmit={handlePinSubmit} className="space-y-4">
+            {pinError && (
+              <div className="p-3 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-semibold">
+                {pinError}
+              </div>
+            )}
+
+            <div className="space-y-1 text-left">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 block">
+                ENTER ORGANIZER SECURITY PIN
+              </label>
+              <div className="relative">
+                <KeyRound className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  value={pinInput}
+                  onChange={(e) => {
+                    setPinInput(e.target.value);
+                    setPinError('');
+                  }}
+                  placeholder="Enter PIN (e.g. CLUTCH2026)"
+                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-black/70 border border-zinc-700 focus:border-red-500 focus:ring-1 focus:ring-red-500 text-white text-sm outline-none font-mono tracking-widest"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white font-black font-['Orbitron',sans-serif] tracking-wider text-xs sm:text-sm shadow-[0_0_25px_rgba(239,68,68,0.5)] transition transform hover:scale-102 active:scale-98 cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Unlock className="w-4 h-4" />
+              <span>AUTHENTICATE & UNLOCK</span>
+            </button>
+          </form>
+
+          <p className="text-[11px] text-zinc-500">
+            Default Organizer PIN: <code className="text-zinc-400 font-mono">CLUTCH2026</code>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Filtered players list
   const filteredPlayers = players.filter((p) => {
@@ -64,8 +155,8 @@ export default function AdminPanel({
               <h1 className="text-xl sm:text-2xl font-black font-['Orbitron',sans-serif] tracking-wider text-white">
                 TOURNAMENT DIRECTOR DESK
               </h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/40 uppercase">
-                ADMIN CONSOLE
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/40 uppercase">
+                AUTHENTICATED
               </span>
             </div>
             <p className="text-xs text-zinc-400">
@@ -74,35 +165,44 @@ export default function AdminPanel({
           </div>
         </div>
 
-        {/* TOP STATUS GAUGES */}
-        <div className="flex items-center gap-3 sm:gap-4 bg-black/60 px-4 py-2 rounded-xl border border-zinc-800 self-stretch md:self-auto justify-between md:justify-start">
-          <div className="text-center">
-            <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">STATUS</span>
-            <span className="text-xs sm:text-sm font-black text-orange-400 font-['Space_Grotesk',sans-serif]">
-              {status}
-            </span>
+        {/* LOGOUT & TOP STATUS GAUGES */}
+        <div className="flex items-center gap-3 sm:gap-4 self-stretch md:self-auto justify-between md:justify-start">
+          <div className="flex items-center gap-3 bg-black/60 px-4 py-2 rounded-xl border border-zinc-800">
+            <div className="text-center">
+              <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">STATUS</span>
+              <span className="text-xs sm:text-sm font-black text-orange-400 font-['Space_Grotesk',sans-serif]">
+                {status}
+              </span>
+            </div>
+            <div className="h-6 w-px bg-zinc-800"></div>
+            <div className="text-center">
+              <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">ROUND</span>
+              <span className="text-sm sm:text-base font-black text-white font-mono">
+                {round}
+              </span>
+            </div>
+            <div className="h-6 w-px bg-zinc-800"></div>
+            <div className="text-center">
+              <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">GAME PIN</span>
+              <span className="text-sm sm:text-base font-black text-orange-400 font-mono">
+                {gamePin}
+              </span>
+            </div>
           </div>
-          <div className="h-6 w-px bg-zinc-800"></div>
-          <div className="text-center">
-            <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">ROUND</span>
-            <span className="text-sm sm:text-base font-black text-white font-mono">
-              {round}
-            </span>
-          </div>
-          <div className="h-6 w-px bg-zinc-800"></div>
-          <div className="text-center">
-            <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">CONTENDERS</span>
-            <span className="text-sm sm:text-base font-black text-green-400 font-mono">
-              {activeCount}
-            </span>
-          </div>
-          <div className="h-6 w-px bg-zinc-800"></div>
-          <div className="text-center">
-            <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">SPECTATORS</span>
-            <span className="text-sm sm:text-base font-black text-red-400 font-mono">
-              {spectatorCount}
-            </span>
-          </div>
+
+          {/* Secure Logout / Lock Button */}
+          <button
+            type="button"
+            onClick={() => {
+              sound.playClick();
+              onAdminLogout();
+            }}
+            title="Lock Console & Log Out"
+            className="p-2.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/40 text-red-300 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="hidden sm:inline">LOCK</span>
+          </button>
         </div>
       </div>
 
@@ -203,7 +303,7 @@ export default function AdminPanel({
           </div>
         </div>
 
-        {/* TEST CONTENDER BOT ENGINE (4 cols) */}
+        {/* AI SIMULATION & GAME PIN MANAGEMENT (4 cols) */}
         <div className="lg:col-span-4 glass-panel rounded-2xl p-5 border border-zinc-800 space-y-3.5 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
@@ -217,25 +317,25 @@ export default function AdminPanel({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2 pt-2">
+          <div className="flex flex-wrap gap-2 pt-1">
             <button
               type="button"
               onClick={() => onAddBots(4)}
-              className="flex-1 min-w-[70px] py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
+              className="flex-1 min-w-[70px] py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
             >
               +4 Bots
             </button>
             <button
               type="button"
               onClick={() => onAddBots(8)}
-              className="flex-1 min-w-[70px] py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
+              className="flex-1 min-w-[70px] py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
             >
               +8 Bots
             </button>
             <button
               type="button"
               onClick={() => onAddBots(16)}
-              className="flex-1 min-w-[70px] py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
+              className="flex-1 min-w-[70px] py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-zinc-200 hover:text-white cursor-pointer transition text-center"
             >
               +16 Bots
             </button>

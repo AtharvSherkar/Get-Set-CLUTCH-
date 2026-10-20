@@ -1,12 +1,13 @@
 // client/src/components/Navbar.jsx
 import React, { useState } from 'react';
-import { Volume2, VolumeX, Shield, Users, Radio, Activity, Tv, Smartphone } from 'lucide-react';
+import { Volume2, VolumeX, Shield, Users, Radio, Activity, Tv, Smartphone, Lock } from 'lucide-react';
 import { sound } from '../utils/audio';
 
 export default function Navbar({
   tournamentState,
   currentPlayer,
   activeView = 'PLAYER', // 'PLAYER' | 'ADMIN' | 'PROJECTOR'
+  isAdminAuthenticated = false,
   onSelectView
 }) {
   const [isMuted, setIsMuted] = useState(sound.muted);
@@ -22,7 +23,7 @@ export default function Navbar({
   const round = tournamentState?.round || 0;
 
   return (
-    <header className="sticky top-0 z-40 w-full glass-panel border-b border-orange-500/20 px-3 sm:px-6 py-2.5">
+    <header className="sticky top-0 z-40 w-full glass-panel border-b border-orange-500/20 px-3 sm:px-6 py-2.5 select-none">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Brand / Logo */}
         <div
@@ -47,56 +48,59 @@ export default function Navbar({
               </span>
             </div>
             <p className="text-[10px] text-zinc-400 font-medium hidden sm:block">
-              Rock • Paper • Scissors Battle Royale
+              Rock • Paper • Scissors Tournament
             </p>
           </div>
         </div>
 
-        {/* CENTER: HIGH-TECH VIEW SWITCHER */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-black/60 border border-zinc-800">
+        {/* CENTER: STANDARD NAVIGATION (DOES NOT EXPOSE ADMIN BUTTON TO REGULAR PLAYERS) */}
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-black/60 border border-zinc-800">
           <button
             type="button"
             onClick={() => onSelectView('PLAYER')}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
               activeView === 'PLAYER'
                 ? 'bg-[#FF5500] text-white shadow-[0_0_15px_rgba(255,85,0,0.5)]'
                 : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Player</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onSelectView('ADMIN')}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-              activeView === 'ADMIN'
-                ? 'bg-[#FF5500] text-white shadow-[0_0_15px_rgba(255,85,0,0.5)]'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-            }`}
-          >
-            <Shield className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Admin</span>
+            <span>Play Arena</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectView('PROJECTOR')}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
               activeView === 'PROJECTOR'
                 ? 'bg-[#FF5500] text-white shadow-[0_0_15px_rgba(255,85,0,0.5)]'
                 : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
             }`}
           >
             <Tv className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Big Screen</span>
+            <span>Big Screen</span>
           </button>
+
+          {/* Only shown if Admin is active or authenticated */}
+          {(activeView === 'ADMIN' || isAdminAuthenticated) && (
+            <button
+              type="button"
+              onClick={() => onSelectView('ADMIN')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                activeView === 'ADMIN'
+                  ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]'
+                  : 'text-red-400 hover:text-red-300 hover:bg-zinc-900'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5 text-red-400" />
+              <span>Organizer</span>
+            </button>
+          )}
         </div>
 
         {/* RIGHT CONTROLS */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Status Badge */}
+          {/* Round Status Badge */}
           <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-lg bg-black/50 border border-zinc-800 text-xs">
             <div className="flex items-center gap-1 text-green-400 font-medium">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
@@ -107,6 +111,18 @@ export default function Navbar({
               {status === 'FINALE_STAGE' ? 'FINALE' : `R-${round}`}
             </span>
           </div>
+
+          {/* Discreet Organizer Access Link (small padlock) */}
+          {!isAdminAuthenticated && activeView !== 'ADMIN' && (
+            <button
+              type="button"
+              onClick={() => onSelectView('ADMIN')}
+              title="Organizer Admin Portal (PIN Protected)"
+              className="p-2 rounded-lg bg-zinc-900/40 hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 border border-zinc-800 transition cursor-pointer"
+            >
+              <Lock className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           {/* Sound FX Toggle */}
           <button

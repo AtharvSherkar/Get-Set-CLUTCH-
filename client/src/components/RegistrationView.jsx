@@ -1,6 +1,6 @@
 // client/src/components/RegistrationView.jsx
-import React, { useState } from 'react';
-import { Trophy, Swords, Zap, Users, ArrowRight, ShieldCheck, Flame } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trophy, Swords, Zap, Users, ArrowRight, ShieldCheck, Flame, Hash } from 'lucide-react';
 import { sound } from '../utils/audio';
 
 const AVATARS = ['🔥', '⚡', '🦊', '🤖', '🐺', '👑', '⚔️', '🎯', '🦅', '💀'];
@@ -13,7 +13,25 @@ export default function RegistrationView({
   const [name, setName] = useState('');
   const [studentId, setStudentId] = useState('');
   const [avatar, setAvatar] = useState(AVATARS[0]);
+  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
+
+  const serverGamePin = tournamentState?.gamePin || '742910';
+
+  // Read PIN from URL query param if present (?pin=...)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlPin = params.get('pin') || params.get('room');
+      if (urlPin) {
+        setPin(urlPin);
+      } else {
+        setPin(serverGamePin);
+      }
+    } catch (e) {
+      setPin(serverGamePin);
+    }
+  }, [serverGamePin]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -21,11 +39,16 @@ export default function RegistrationView({
       setError('Please enter a display name or gamer tag');
       return;
     }
+
+    // Gracefully unlock audio on initial user tap
+    sound.unlockAudio();
     sound.playClick();
+
     onRegister({
       name: name.trim(),
       studentId: studentId.trim() || `CLUTCH-${Math.floor(100 + Math.random() * 900)}`,
-      avatar
+      avatar,
+      pin: pin.trim()
     });
   };
 
@@ -66,12 +89,15 @@ export default function RegistrationView({
             <div className="flex items-center gap-2">
               <Swords className="w-5 h-5 text-[#FF5500]" />
               <h2 className="text-lg font-bold font-['Space_Grotesk',sans-serif] text-white">
-                CONTENDER REGISTRATION
+                JOIN TOURNAMENT
               </h2>
             </div>
-            <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-semibold">
-              LOBBY OPEN
-            </span>
+            
+            {/* KAHOOT STYLE GAME PIN BADGE */}
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/40 text-xs font-black font-mono">
+              <Hash className="w-3.5 h-3.5" />
+              <span>PIN: {pin || serverGamePin}</span>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -84,7 +110,7 @@ export default function RegistrationView({
             {/* Display Name Input */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-zinc-300">
-                Display Name / Gamertag <span className="text-[#FF5500]">*</span>
+                Nickname / Gamertag <span className="text-[#FF5500]">*</span>
               </label>
               <input
                 type="text"
@@ -145,7 +171,7 @@ export default function RegistrationView({
               type="submit"
               className="w-full py-4 rounded-xl bg-gradient-to-r from-[#FF5500] to-[#FF8C00] hover:from-[#FF6B00] hover:to-[#FFA01C] text-white font-extrabold font-['Orbitron',sans-serif] tracking-wider text-base shadow-[0_0_25px_rgba(255,85,0,0.5)] hover:shadow-[0_0_35px_rgba(255,85,0,0.8)] transition transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>ENTER THE ARENA</span>
+              <span>JOIN PRE-GAME LOBBY</span>
               <ArrowRight className="w-5 h-5" />
             </button>
           </form>
@@ -166,7 +192,7 @@ export default function RegistrationView({
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[#FF5500] font-bold">02.</span>
-                <span><strong>Draw Condition:</strong> If you and your opponent pick the same gesture, <strong>BOTH ADVANCE</strong> to the next round!</span>
+                <span><strong>Draw Condition:</strong> If you and your opponent pick the same gesture, <strong>BOTH ADVANCE</strong>!</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[#FF5500] font-bold">03.</span>
@@ -184,7 +210,7 @@ export default function RegistrationView({
             <div className="flex items-center justify-between text-xs font-bold text-zinc-400 pb-2 border-b border-zinc-800">
               <div className="flex items-center gap-1.5 text-white">
                 <Users className="w-4 h-4 text-[#FF5500]" />
-                <span>REGISTERED CONTENDERS</span>
+                <span>WAITING ROOM CONTENDERS</span>
               </div>
               <span className="px-2 py-0.5 rounded bg-zinc-800 text-orange-400 font-mono">
                 {activeCount} READY
@@ -194,10 +220,10 @@ export default function RegistrationView({
             <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
               {players.length === 0 ? (
                 <div className="py-6 text-center text-xs text-zinc-500 font-medium">
-                  Waiting for first contenders to join the lobby...
+                  Waiting for first contenders to join the room...
                 </div>
               ) : (
-                players.map((p, idx) => (
+                players.map((p) => (
                   <div
                     key={p.id}
                     className="flex items-center justify-between p-2 rounded-lg bg-black/40 border border-zinc-800/80 hover:border-orange-500/30 text-xs"

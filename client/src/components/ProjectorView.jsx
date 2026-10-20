@@ -1,32 +1,85 @@
 // client/src/components/ProjectorView.jsx
-// Big Screen / Auditorium Projector Display Mode for Event Anchors & Audiences
+// Big Screen / Auditorium Projector Display Mode with Kahoot-style Live QR Code & Game PIN
 
 import React from 'react';
-import { Trophy, Swords, Flame, Users, Radio, Sparkles, PhoneCall } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
+import { Trophy, Swords, Flame, Users, Radio, Sparkles, Hash, QrCode, Smartphone } from 'lucide-react';
 
 export default function ProjectorView({ tournamentState }) {
   const status = tournamentState?.status || 'REGISTRATION';
   const round = tournamentState?.round || 0;
+  const gamePin = tournamentState?.gamePin || '742910';
   const activeCount = tournamentState?.stats?.activeCount || 0;
   const spectatorCount = tournamentState?.stats?.spectatorCount || 0;
   const matches = tournamentState?.matches || [];
   const finalists = tournamentState?.finalists || [];
   const currentBeat = tournamentState?.currentBeat || 'READY';
 
+  // Construct mobile join URL
+  const serverIp = tournamentState?.serverLanIp || window.location.hostname;
+  const port = window.location.port || '5173';
+  const joinUrl = `http://${serverIp}:${port}/#player?pin=${gamePin}`;
+
   return (
-    <div className="w-full max-w-7xl mx-auto px-6 py-8 space-y-8 select-none">
-      {/* CINEMATIC STAGE BANNER */}
-      <div className="text-center space-y-4">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs font-black tracking-widest uppercase">
-          <Flame className="w-4 h-4 text-[#FF5500] animate-pulse" />
-          OFFICIAL ARENA PROJECTOR FEED
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 select-none">
+      {/* KAHOOT STYLE LIVE QR CODE & JOIN BANNER (FEATURED IN REGISTRATION / LOBBY) */}
+      <div className="glass-panel-glow border-2 border-orange-500/50 rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl relative overflow-hidden">
+        {/* Glow backdrop */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        {/* Left: Join Instructions & Game PIN */}
+        <div className="space-y-4 text-center md:text-left">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-400 text-xs font-black tracking-widest uppercase">
+            <Flame className="w-4 h-4 text-[#FF5500] animate-pulse" />
+            LIVE AUDITORIUM STAGE FEED
+          </div>
+
+          <div className="flex items-center justify-center md:justify-start gap-3">
+            <img src="/assets/clutch-logo.png" alt="CLUTCH" className="w-12 h-12 object-contain" />
+            <h1 className="text-3xl sm:text-5xl font-black font-['Orbitron',sans-serif] tracking-wider text-white">
+              CLU<span className="text-[#FF5500]">TCH</span> ARENA
+            </h1>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-4 pt-2">
+            {/* Game PIN Box */}
+            <div className="bg-black/80 px-6 py-3 rounded-2xl border-2 border-orange-500 shadow-xl text-center">
+              <span className="text-[10px] font-extrabold uppercase text-zinc-400 tracking-widest block">
+                GAME PIN CODE
+              </span>
+              <span className="text-4xl sm:text-5xl font-black text-orange-400 font-mono tracking-wider">
+                {gamePin}
+              </span>
+            </div>
+
+            <div className="text-xs text-zinc-300 font-medium space-y-1 text-center sm:text-left">
+              <p className="flex items-center gap-1.5 justify-center sm:justify-start font-bold text-white text-sm">
+                <Smartphone className="w-4 h-4 text-[#FF5500]" />
+                Scan QR or open on phone:
+              </p>
+              <p className="font-mono text-orange-300 text-xs sm:text-sm bg-black/60 px-3 py-1.5 rounded-lg border border-zinc-800">
+                {joinUrl}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center justify-center gap-4">
-          <img src="/assets/clutch-logo.png" alt="CLUTCH" className="w-16 h-16 object-contain" />
-          <h1 className="text-5xl sm:text-7xl font-black font-['Orbitron',sans-serif] tracking-wider text-white">
-            CLU<span className="text-[#FF5500]">TCH</span>
-          </h1>
+        {/* Right: Crisp Scannable QR Code */}
+        <div className="flex flex-col items-center gap-2 bg-black/90 p-4 sm:p-5 rounded-2xl border-2 border-orange-500/60 shadow-2xl">
+          <div className="bg-white p-3 rounded-xl shadow-inner">
+            <QRCodeSVG
+              value={joinUrl}
+              size={150}
+              level="H"
+              includeMargin={false}
+              fgColor="#000000"
+              bgColor="#FFFFFF"
+            />
+          </div>
+          <span className="text-[10px] font-black uppercase text-orange-400 tracking-wider flex items-center gap-1">
+            <QrCode className="w-3.5 h-3.5" />
+            SCAN WITH PHONE CAMERA TO JOIN
+          </span>
         </div>
       </div>
 
@@ -63,31 +116,31 @@ export default function ProjectorView({ tournamentState }) {
       )}
 
       {/* GIANT STATS DIALS */}
-      <div className="grid grid-cols-3 gap-6">
-        <div className="glass-panel-glow rounded-3xl p-6 border border-zinc-800 text-center">
+      <div className="grid grid-cols-3 gap-4 sm:gap-6">
+        <div className="glass-panel-glow rounded-3xl p-5 sm:p-6 border border-zinc-800 text-center">
           <span className="text-xs uppercase font-extrabold text-zinc-400 block tracking-widest">
             STAGE ROUND
           </span>
-          <span className="text-4xl sm:text-6xl font-black text-white font-['Space_Grotesk',sans-serif] mt-1 block">
+          <span className="text-3xl sm:text-6xl font-black text-white font-['Space_Grotesk',sans-serif] mt-1 block">
             {status === 'FINALE_STAGE' ? 'FINALE' : `ROUND ${round}`}
           </span>
         </div>
 
-        <div className="glass-panel-glow rounded-3xl p-6 border border-green-500/30 text-center shadow-[0_0_30px_rgba(34,197,94,0.15)]">
+        <div className="glass-panel-glow rounded-3xl p-5 sm:p-6 border border-green-500/30 text-center shadow-[0_0_30px_rgba(34,197,94,0.15)]">
           <span className="text-xs uppercase font-extrabold text-green-400 block tracking-widest flex items-center justify-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-ping"></span>
             CONTENDERS ALIVE
           </span>
-          <span className="text-4xl sm:text-6xl font-black text-green-400 font-mono mt-1 block">
+          <span className="text-3xl sm:text-6xl font-black text-green-400 font-mono mt-1 block">
             {activeCount}
           </span>
         </div>
 
-        <div className="glass-panel-glow rounded-3xl p-6 border border-orange-500/30 text-center shadow-[0_0_30px_rgba(255,85,0,0.15)]">
+        <div className="glass-panel-glow rounded-3xl p-5 sm:p-6 border border-orange-500/30 text-center shadow-[0_0_30px_rgba(255,85,0,0.15)]">
           <span className="text-xs uppercase font-extrabold text-orange-400 block tracking-widest">
             SPECTATORS
           </span>
-          <span className="text-4xl sm:text-6xl font-black text-orange-400 font-mono mt-1 block">
+          <span className="text-3xl sm:text-6xl font-black text-orange-400 font-mono mt-1 block">
             {spectatorCount}
           </span>
         </div>
@@ -98,7 +151,7 @@ export default function ProjectorView({ tournamentState }) {
         <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
           <div className="flex items-center gap-2">
             <Swords className="w-6 h-6 text-[#FF5500]" />
-            <h2 className="text-xl font-bold font-['Space_Grotesk',sans-serif] text-white">
+            <h2 className="text-lg sm:text-xl font-bold font-['Space_Grotesk',sans-serif] text-white">
               LIVE ARENA COMBAT DUELS
             </h2>
           </div>
@@ -112,7 +165,7 @@ export default function ProjectorView({ tournamentState }) {
         {matches.length === 0 ? (
           <div className="py-16 text-center text-zinc-500 text-sm font-semibold">
             {status === 'REGISTRATION'
-              ? 'Lobby open. Contenders registering on mobile devices.'
+              ? 'Lobby open. Contenders registering on mobile devices via QR code above.'
               : 'Stand by for round pairings...'}
           </div>
         ) : (
