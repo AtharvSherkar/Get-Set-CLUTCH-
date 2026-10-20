@@ -5,7 +5,8 @@
   "scripts": {
     "server": "node server/index.js",
     "client": "npm run dev --prefix client",
-    "build": "npm run build --prefix client",
+    "build": "npm --prefix client install && npm --prefix client run build",
+    "vercel-build": "npm --prefix client install && npm --prefix client run build",
     "dev": "node dev-runner.js",
     "start": "node server/index.js"
   },

@@ -10,10 +10,40 @@ import ProjectorView from './components/ProjectorView';
 import FinaleCallModal from './components/FinaleCallModal';
 import { sound } from './utils/audio';
 
-// Socket server URL configuration (connects to port 3001 when on Vite dev port 5173, otherwise same origin)
-const SOCKET_URL = window.location.port === '5173'
-  ? `http://${window.location.hostname}:3001`
-  : undefined;
+// Dynamic Socket server URL resolution for Vercel, cloud hosting, and local development
+function getInitialSocketUrl() {
+  if (typeof window === 'undefined') return undefined;
+
+  // 1. Check URL query parameter: ?server=https://my-backend.railway.app
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const serverParam = params.get('server');
+    if (serverParam) {
+      localStorage.setItem('clutch_backend_url', serverParam);
+      return serverParam;
+    }
+  } catch (e) {}
+
+  // 2. Check localStorage for previously configured backend
+  try {
+    const saved = localStorage.getItem('clutch_backend_url');
+    if (saved) return saved;
+  } catch (e) {}
+
+  // 3. Environment variables configured in Vercel or .env
+  if (import.meta.env.VITE_SERVER_URL) return import.meta.env.VITE_SERVER_URL;
+  if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
+
+  // 4. Default for Vite dev server on port 5173
+  if (window.location.port === '5173') {
+    return `http://${window.location.hostname}:3001`;
+  }
+
+  // 5. Default to same origin for unified container hosting
+  return undefined;
+}
+
+const SOCKET_URL = getInitialSocketUrl();
 
 export default function App() {
   const [socket, setSocket] = useState(null);

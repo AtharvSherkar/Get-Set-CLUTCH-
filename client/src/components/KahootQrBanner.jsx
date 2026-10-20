@@ -16,13 +16,26 @@ export default function KahootQrBanner({
   const [copied, setCopied] = useState(false);
   const [isFullScreenQr, setIsFullScreenQr] = useState(false);
 
-  // Determine the mobile-friendly Join URL
+  // Determine the mobile-friendly Join URL (cloud-aware for Vercel, LAN-aware for local Wi-Fi)
+  const isLocalhost = typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
   const port = window.location.port ? `:${window.location.port}` : '';
-  const host = (serverLanIp && serverLanIp !== 'localhost' && serverLanIp !== '127.0.0.1')
+  const host = (isLocalhost && serverLanIp && serverLanIp !== 'localhost' && serverLanIp !== '127.0.0.1')
     ? `${serverLanIp}${port}`
     : window.location.host;
 
-  const joinUrl = `${window.location.protocol}//${host}/join`;
+  // Preserve custom backend parameter if present
+  let serverQuery = '';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const serverParam = params.get('server') || localStorage.getItem('clutch_backend_url');
+    if (serverParam && !isLocalhost) {
+      serverQuery = `?server=${encodeURIComponent(serverParam)}`;
+    }
+  } catch (e) {}
+
+  const joinUrl = `${window.location.protocol}//${host}/join${serverQuery}`;
 
   useEffect(() => {
     QRCode.toDataURL(joinUrl, {
