@@ -88,16 +88,16 @@ export default function RegistrationView({
                 PLAYER JOIN • ENTER TOURNAMENT
               </h2>
             </div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border">
+            <div className="flex items-center gap-1.5 text-xs font-semibold">
               {isConnected ? (
-                <span className="flex items-center gap-1 text-green-400 border-green-500/30 bg-green-500/20 px-2 py-0.5 rounded-full">
+                <span className="flex items-center gap-1 text-green-400 border border-green-500/30 bg-green-500/20 px-2.5 py-0.5 rounded-full">
                   <Wifi className="w-3 h-3 text-green-400 animate-pulse" />
-                  SERVER ONLINE
+                  ARENA ONLINE
                 </span>
               ) : (
-                <span className="flex items-center gap-1 text-red-400 border-red-500/30 bg-red-500/20 px-2 py-0.5 rounded-full">
-                  <WifiOff className="w-3 h-3 text-red-400" />
-                  SERVER OFFLINE
+                <span className="flex items-center gap-1.5 text-amber-400 border border-amber-500/30 bg-amber-500/20 px-2.5 py-0.5 rounded-full">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                  CONNECTING...
                 </span>
               )}
             </div>

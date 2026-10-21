@@ -112,7 +112,13 @@ export class TournamentManager {
 
     player.disconnectedAt = Date.now();
 
-    // 5-second grace period before auto-forfeit if tournament is active
+    // If still in registration lobby, KEEP player in lobby! (Mobile screen sleep won't delete them)
+    if (this.status === TournamentStatus.REGISTRATION) {
+      this.broadcastState();
+      return;
+    }
+
+    // 15-second grace period before auto-forfeit if tournament match is active
     setTimeout(() => {
       const p = this.players.get(socketId);
       if (p && p.disconnectedAt) {
@@ -125,18 +131,21 @@ export class TournamentManager {
             }
           }
           p.status = 'spectator';
-        } else if (this.status === TournamentStatus.REGISTRATION) {
-          this.players.delete(socketId);
         }
         this.broadcastState();
       }
-    }, 5000);
+    }, 15000);
   }
 
-  handleReconnect(oldSocketId, newSocketId) {
-    const player = this.players.get(oldSocketId);
+  handleReconnect(oldSocketId, newSocketId, playerName = null) {
+    let player = oldSocketId ? this.players.get(oldSocketId) : null;
+    if (!player && playerName) {
+      player = this.getAllPlayers().find(p => !p.isBot && p.name.toLowerCase() === playerName.toLowerCase());
+    }
+
     if (player) {
-      this.players.delete(oldSocketId);
+      const previousId = player.id;
+      this.players.delete(previousId);
       player.id = newSocketId;
       player.disconnectedAt = null;
       this.players.set(newSocketId, player);
@@ -145,8 +154,8 @@ export class TournamentManager {
       if (player.currentMatchId) {
         const match = this.matches.find(m => m.id === player.currentMatchId);
         if (match) {
-          if (match.player1.id === oldSocketId) match.player1.id = newSocketId;
-          if (match.player2.id === oldSocketId) match.player2.id = newSocketId;
+          if (match.player1 && match.player1.id === previousId) match.player1.id = newSocketId;
+          if (match.player2 && match.player2.id === previousId) match.player2.id = newSocketId;
         }
       }
       this.broadcastState();

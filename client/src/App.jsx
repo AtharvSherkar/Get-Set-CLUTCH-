@@ -47,7 +47,15 @@ export default function App() {
   const [connectionError, setConnectionError] = useState(null);
   const [socket, setSocket] = useState(null);
   const [tournamentState, setTournamentState] = useState(null);
-  const [currentPlayer, setCurrentPlayer] = useState(null);
+  const [currentPlayer, setCurrentPlayer] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const saved = sessionStorage.getItem('clutch_player');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [activeView, setActiveView] = useState('PLAYER'); // 'PLAYER' | 'ADMIN' | 'PROJECTOR'
   const [reactions, setReactions] = useState([]);
   const [cheers, setCheers] = useState([]);
@@ -79,7 +87,7 @@ export default function App() {
   // Initialize Socket connection
   useEffect(() => {
     const s = io(serverUrl, {
-      reconnectionAttempts: 20,
+      reconnectionAttempts: 25,
       reconnectionDelay: 1000,
       transports: ['websocket', 'polling']
     });
@@ -94,7 +102,7 @@ export default function App() {
       if (savedPlayer) {
         try {
           const parsed = JSON.parse(savedPlayer);
-          s.emit('reconnect_player', { oldSocketId: parsed.id });
+          s.emit('reconnect_player', { oldSocketId: parsed.id, name: parsed.name });
         } catch (e) {
           console.error(e);
         }
@@ -180,9 +188,9 @@ export default function App() {
       setTimeout(() => {
         socket.off('connect', onConnectOnce);
         if (!socket.connected) {
-          callbacks.onError?.('Arena server is waking up. Please tap Join again in a few seconds.');
+          callbacks.onError?.('Connecting to tournament arena... please tap Join again in a few seconds.');
         }
-      }, 4000);
+      }, 15000);
       return;
     }
 
