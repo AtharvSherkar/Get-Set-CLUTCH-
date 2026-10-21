@@ -8,6 +8,7 @@ export default defineConfig({
     react(),
     tailwindcss()
   ],
+  envPrefix: ['VITE_', 'REACT_APP_'],
   server: {
     port: 5173,
     proxy: {

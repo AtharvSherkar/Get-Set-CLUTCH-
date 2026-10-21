@@ -83,9 +83,6 @@ export default function WaitingRoom({
                 <h1 className="text-xl sm:text-2xl font-black font-['Space_Grotesk',sans-serif] text-white">
                   {currentPlayer?.name}
                 </h1>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">
-                  {currentPlayer?.studentId}
-                </span>
               </div>
 
               {/* Status explanation */}

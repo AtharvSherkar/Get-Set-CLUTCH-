@@ -152,9 +152,6 @@ export default function FinaleCallModal({
                 <p className="text-lg font-black font-['Space_Grotesk',sans-serif] text-white">
                   {currentPlayer?.name}
                 </p>
-                <p className="text-xs text-orange-300 font-mono">
-                  ID: {currentPlayer?.studentId}
-                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-800 text-xs">

@@ -205,7 +205,7 @@ export default function DuelArena({
               )}
             </div>
             <p className="text-[10px] text-zinc-400 font-mono">
-              {opponentPlayerData?.studentId || 'Opponent Contender'}
+              Contender Matchup
             </p>
           </div>
         </div>

@@ -10,12 +10,43 @@ import ProjectorView from './components/ProjectorView';
 import FinaleCallModal from './components/FinaleCallModal';
 import { sound } from './utils/audio';
 
-// Socket server URL configuration (connects to port 3001 when on Vite dev port 5173, otherwise same origin)
-const SOCKET_URL = window.location.port === '5173'
-  ? `http://${window.location.hostname}:3001`
-  : undefined;
+// Resolves the backend server URL with maximum flexibility:
+// 1. URL search param: ?server=https://...
+// 2. localStorage: 'clutch_server_url'
+// 3. Environment variables: VITE_SERVER_URL or REACT_APP_SERVER_URL
+// 4. Vite dev default: http://localhost:3001
+const getInitialServerUrl = () => {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const paramServer = params.get('server');
+    if (paramServer && paramServer.trim() !== '') {
+      localStorage.setItem('clutch_server_url', paramServer.trim());
+      return paramServer.trim();
+    }
+    const saved = localStorage.getItem('clutch_server_url');
+    if (saved && saved.trim() !== '') return saved.trim();
+  } catch (e) {
+    // fallback
+  }
+
+  const envUrl =
+    import.meta.env?.VITE_SERVER_URL ||
+    import.meta.env?.REACT_APP_SERVER_URL ||
+    (typeof window !== 'undefined' ? window.__CLUTCH_SERVER_URL__ : undefined);
+
+  if (envUrl && envUrl.trim() !== '') return envUrl.trim();
+
+  if (window.location.port === '5173') {
+    return `http://${window.location.hostname}:3001`;
+  }
+  return undefined;
+};
 
 export default function App() {
+  const [serverUrl, setServerUrl] = useState(getInitialServerUrl);
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState(null);
   const [socket, setSocket] = useState(null);
   const [tournamentState, setTournamentState] = useState(null);
   const [currentPlayer, setCurrentPlayer] = useState(null);
@@ -49,15 +80,18 @@ export default function App() {
 
   // Initialize Socket connection
   useEffect(() => {
-    const s = io(SOCKET_URL, {
-      reconnectionAttempts: 15,
-      reconnectionDelay: 1000
+    const s = io(serverUrl, {
+      reconnectionAttempts: 20,
+      reconnectionDelay: 1000,
+      transports: ['websocket', 'polling']
     });
     socketRef.current = s;
     setSocket(s);
 
     s.on('connect', () => {
       console.log('Connected to CLUTCH server:', s.id);
+      setIsConnected(true);
+      setConnectionError(null);
       const savedPlayer = sessionStorage.getItem('clutch_player');
       if (savedPlayer) {
         try {
@@ -67,6 +101,16 @@ export default function App() {
           console.error(e);
         }
       }
+    });
+
+    s.on('connect_error', (err) => {
+      console.warn('Socket connect error:', err?.message);
+      setIsConnected(false);
+      setConnectionError(err?.message || 'Connection failed');
+    });
+
+    s.on('disconnect', () => {
+      setIsConnected(false);
     });
 
     s.on('tournament_state', (state) => {
@@ -92,9 +136,7 @@ export default function App() {
 
     s.on('new_reaction', (reaction) => {
       if (!reaction || !reaction.id) return;
-      // Add only upon deliberate socket event
       setReactions((prev) => [...prev, reaction]);
-      // Ephemeral cleanup: completely remove after 2.2s animation so no ghost/auto-toggle emojis persist
       setTimeout(() => {
         setReactions((prev) => prev.filter((r) => r.id !== reaction.id));
       }, 2200);
@@ -107,16 +149,46 @@ export default function App() {
     return () => {
       s.disconnect();
     };
-  }, []);
+  }, [serverUrl]);
+
+  // Update backend server URL dynamically
+  const handleUpdateServerUrl = (newUrl) => {
+    if (!newUrl) return;
+    try {
+      localStorage.setItem('clutch_server_url', newUrl.trim());
+    } catch (e) {}
+    setServerUrl(newUrl.trim());
+    window.location.reload();
+  };
 
   // User actions
-  const handleRegister = (data) => {
-    socket?.emit('register_player', data);
+  const handleRegister = (data, callbacks = {}) => {
+    if (!socket || !socket.connected) {
+      callbacks.onError?.('Game server is offline or unreachable. Please connect a backend.');
+      return;
+    }
+    socket.emit('register_player', data);
     try {
       window.history.pushState(null, '', '/waiting-room');
     } catch (e) {
       // fallback
     }
+  };
+
+  const handleDemoRegister = (data) => {
+    const demoPlayer = {
+      id: `demo_${Date.now()}`,
+      name: data.name,
+      avatar: data.avatar,
+      studentId: `DEMO-${Math.floor(100 + Math.random() * 900)}`,
+      status: 'active',
+      isBot: false,
+      score: 0,
+      roundStreak: 0,
+      registeredAt: Date.now()
+    };
+    setCurrentPlayer(demoPlayer);
+    sessionStorage.setItem('clutch_player', JSON.stringify(demoPlayer));
   };
   const handleSubmitMove = (move) => socket?.emit('submit_move', { move });
   const handleSendReaction = (emoji, senderName) => socket?.emit('send_reaction', { emoji, senderName });
@@ -154,6 +226,7 @@ export default function App() {
         tournamentState={tournamentState}
         currentPlayer={currentPlayer}
         activeView={activeView}
+        isConnected={isConnected}
         onSelectView={(view) => {
           sound.playClick();
           setActiveView(view);
@@ -192,6 +265,11 @@ export default function App() {
             {!currentPlayer ? (
               <RegistrationView
                 onRegister={handleRegister}
+                onDemoRegister={handleDemoRegister}
+                isConnected={isConnected}
+                connectionError={connectionError}
+                serverUrl={serverUrl}
+                onUpdateServerUrl={handleUpdateServerUrl}
                 tournamentState={tournamentState}
                 currentPlayer={currentPlayer}
               />

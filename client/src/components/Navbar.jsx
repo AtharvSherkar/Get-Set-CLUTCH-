@@ -7,6 +7,7 @@ export default function Navbar({
   tournamentState,
   currentPlayer,
   activeView = 'PLAYER', // 'PLAYER' | 'ADMIN' | 'PROJECTOR'
+  isConnected = false,
   onSelectView
 }) {
   const [isMuted, setIsMuted] = useState(sound.muted);
@@ -90,6 +91,17 @@ export default function Navbar({
             <span className="text-zinc-600">|</span>
             <span className="text-orange-400 font-bold uppercase font-['Space_Grotesk',sans-serif]">
               {status === 'FINALE_STAGE' ? 'FINALE' : `R-${round}`}
+            </span>
+          </div>
+
+          {/* Backend Connection Dot */}
+          <div
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/50 border border-zinc-800 text-xs"
+            title={isConnected ? 'Backend Server Connected' : 'Backend Server Offline / Reconnecting'}
+          >
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+            <span className={`text-[10px] font-mono font-bold hidden xs:inline ${isConnected ? 'text-green-400' : 'text-red-400'}`}>
+              {isConnected ? 'LIVE' : 'OFFLINE'}
             </span>
           </div>
 

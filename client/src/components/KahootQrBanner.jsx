@@ -12,13 +12,18 @@ export default function KahootQrBanner({
   const [copied, setCopied] = useState(false);
   const [isFullScreenQr, setIsFullScreenQr] = useState(false);
 
-  // Determine the mobile-friendly Join URL
-  const port = window.location.port ? `:${window.location.port}` : '';
-  const host = (serverLanIp && serverLanIp !== 'localhost' && serverLanIp !== '127.0.0.1')
-    ? `${serverLanIp}${port}`
-    : window.location.host;
+  // Dynamic Base URL for QR Code & Player Join link
+  // Uses window.location.origin dynamically so that scanning the QR code auto-directs
+  // players to https://<YOUR_CLOUDFLARE_DOMAIN>/join on Cloudflare Pages or any custom domain.
+  // When running locally on localhost, optionally uses serverLanIp so mobile phones on the same local network can join.
+  const isLocalhost = typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-  const joinUrl = `${window.location.protocol}//${host}/join`;
+  const baseUrl = (isLocalhost && serverLanIp && serverLanIp !== 'localhost' && serverLanIp !== '127.0.0.1')
+    ? `${window.location.protocol}//${serverLanIp}${window.location.port ? `:${window.location.port}` : ''}`
+    : (typeof window !== 'undefined' ? window.location.origin : '');
+
+  const joinUrl = `${baseUrl}/join`;
 
   const handleCopy = () => {
     sound.playClick();

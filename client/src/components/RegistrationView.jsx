@@ -1,19 +1,24 @@
-// client/src/components/RegistrationView.jsx
 import React, { useState } from 'react';
-import { Trophy, Swords, Zap, Users, ArrowRight, ShieldCheck, Flame } from 'lucide-react';
+import { Trophy, Swords, Zap, Users, ArrowRight, ShieldCheck, Flame, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 import { sound } from '../utils/audio';
 
 const AVATARS = ['🔥', '⚡', '🦊', '🤖', '🐺', '👑', '⚔️', '🎯', '🦅', '💀'];
 
 export default function RegistrationView({
   onRegister,
+  onDemoRegister,
+  isConnected = false,
+  connectionError,
+  serverUrl,
+  onUpdateServerUrl,
   tournamentState,
   currentPlayer
 }) {
   const [name, setName] = useState('');
-  const [studentId, setStudentId] = useState('');
   const [avatar, setAvatar] = useState(AVATARS[0]);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customServerUrl, setCustomServerUrl] = useState(serverUrl || '');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -21,12 +26,32 @@ export default function RegistrationView({
       setError('Please enter a display name or gamer tag');
       return;
     }
+    setError('');
     sound.playClick();
-    onRegister({
-      name: name.trim(),
-      studentId: studentId.trim() || `CLUTCH-${Math.floor(100 + Math.random() * 900)}`,
-      avatar
-    });
+    setIsSubmitting(true);
+
+    if (!isConnected) {
+      setIsSubmitting(false);
+      setError('Cannot join: Game server is offline or unreachable. Please connect backend server or enter Demo Mode below.');
+      return;
+    }
+
+    onRegister(
+      {
+        name: name.trim(),
+        avatar
+      },
+      {
+        onError: (msg) => {
+          setIsSubmitting(false);
+          setError(msg || 'Failed to enter arena.');
+        }
+      }
+    );
+
+    setTimeout(() => {
+      setIsSubmitting(false);
+    }, 6000);
   };
 
   const players = tournamentState?.players || [];
@@ -69,10 +94,71 @@ export default function RegistrationView({
                 PLAYER JOIN • ENTER TOURNAMENT
               </h2>
             </div>
-            <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30 font-semibold">
-              LOBBY OPEN
-            </span>
+            <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border">
+              {isConnected ? (
+                <span className="flex items-center gap-1 text-green-400 border-green-500/30 bg-green-500/20 px-2 py-0.5 rounded-full">
+                  <Wifi className="w-3 h-3 text-green-400 animate-pulse" />
+                  SERVER ONLINE
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-red-400 border-red-500/30 bg-red-500/20 px-2 py-0.5 rounded-full">
+                  <WifiOff className="w-3 h-3 text-red-400" />
+                  SERVER OFFLINE
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* Offline Notice & Server URL Config */}
+          {!isConnected && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 text-xs space-y-2.5">
+              <div className="flex items-center gap-2 font-bold text-amber-400">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>BACKEND SERVER DISCONNECTED</span>
+              </div>
+              <p className="text-[11px] text-zinc-300 leading-relaxed">
+                Cloudflare Pages hosts the frontend app, but real-time duels require the CLUTCH Node.js backend. If your backend is deployed (e.g. Render/Railway/VPS) or running locally, enter its URL below:
+              </p>
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="text"
+                  value={customServerUrl}
+                  onChange={(e) => setCustomServerUrl(e.target.value)}
+                  placeholder="https://clutch-backend.onrender.com"
+                  className="flex-1 px-3 py-2 rounded-lg bg-black/80 border border-zinc-700 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-orange-500 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (customServerUrl.trim()) {
+                      onUpdateServerUrl?.(customServerUrl.trim());
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shrink-0 cursor-pointer transition shadow"
+                >
+                  Connect
+                </button>
+              </div>
+              {onDemoRegister && (
+                <div className="pt-2 border-t border-amber-500/20 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[11px] text-zinc-400">Want to test the player interface immediately?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!name.trim()) {
+                        setError('Please enter your display name first');
+                        return;
+                      }
+                      onDemoRegister({ name: name.trim(), avatar });
+                    }}
+                    className="text-xs font-bold text-orange-400 hover:text-orange-300 underline cursor-pointer"
+                  >
+                    Enter in Demo Mode &rarr;
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
@@ -95,21 +181,6 @@ export default function RegistrationView({
                   setError('');
                 }}
                 placeholder="e.g. PhoenixBlade"
-                className="w-full px-4 py-3 rounded-xl bg-black/60 border border-zinc-700 focus:border-[#FF5500] focus:ring-1 focus:ring-[#FF5500] text-white text-sm outline-none transition placeholder:text-zinc-600 font-medium"
-              />
-            </div>
-
-            {/* Student ID / Roll No */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-zinc-300">
-                Student ID / College Roll No
-              </label>
-              <input
-                type="text"
-                maxLength={20}
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
-                placeholder="e.g. CS2026-042"
                 className="w-full px-4 py-3 rounded-xl bg-black/60 border border-zinc-700 focus:border-[#FF5500] focus:ring-1 focus:ring-[#FF5500] text-white text-sm outline-none transition placeholder:text-zinc-600 font-medium"
               />
             </div>
@@ -143,9 +214,12 @@ export default function RegistrationView({
             {/* Join Button */}
             <button
               type="submit"
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-[#FF5500] to-[#FF8C00] hover:from-[#FF6B00] hover:to-[#FFA01C] text-white font-extrabold font-['Orbitron',sans-serif] tracking-wider text-base shadow-[0_0_25px_rgba(255,85,0,0.5)] hover:shadow-[0_0_35px_rgba(255,85,0,0.8)] transition transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2"
+              disabled={isSubmitting}
+              className={`w-full py-4 rounded-xl bg-gradient-to-r from-[#FF5500] to-[#FF8C00] hover:from-[#FF6B00] hover:to-[#FFA01C] text-white font-extrabold font-['Orbitron',sans-serif] tracking-wider text-base shadow-[0_0_25px_rgba(255,85,0,0.5)] hover:shadow-[0_0_35px_rgba(255,85,0,0.8)] transition transform hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2 ${
+                isSubmitting ? 'opacity-70 cursor-wait' : ''
+              }`}
             >
-              <span>JOIN TOURNAMENT</span>
+              <span>{isSubmitting ? 'ENTERING ARENA...' : 'JOIN TOURNAMENT'}</span>
               <ArrowRight className="w-5 h-5" />
             </button>
           </form>
@@ -211,7 +285,7 @@ export default function RegistrationView({
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] text-zinc-500 font-mono">{p.studentId}</span>
+                    <span className="text-[10px] text-green-400/90 font-mono font-bold">READY</span>
                   </div>
                 ))
               )}

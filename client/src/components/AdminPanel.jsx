@@ -9,7 +9,8 @@ import {
   Check, X, Eye, EyeOff, Search, Trophy, Radio, PhoneCall,
   Flame, Zap, AlertTriangle, RefreshCw, Skull, Clock,
   Crown, Sparkles, UserCheck, UserX, ArrowRight,
-  History, BarChart3, Filter, Award, Target, Activity
+  History, BarChart3, Filter, Award, Target, Activity,
+  Copy, ExternalLink, Tv, Smartphone
 } from 'lucide-react';
 import KahootQrBanner from './KahootQrBanner';
 
@@ -33,6 +34,20 @@ export default function AdminPanel({
   const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'FINALIST' | 'SPECTATOR' | 'BOT'
   const [historyRoundFilter, setHistoryRoundFilter] = useState('ALL'); // 'ALL' | 1 | 2...
   const [historyResultFilter, setHistoryResultFilter] = useState('ALL'); // 'ALL' | 'WIN' | 'DRAW'
+  const [copiedLink, setCopiedLink] = useState(null); // 'player' | 'admin' | 'projector' | null
+
+  // Dynamic Base URLs for tournament links
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const playerLink = `${origin}/join`;
+  const adminLink = `${origin}/admin`;
+  const projectorLink = `${origin}/projector`;
+
+  const copyToClipboard = (text, type) => {
+    sound.playClick();
+    navigator.clipboard?.writeText(text);
+    setCopiedLink(type);
+    setTimeout(() => setCopiedLink(null), 2500);
+  };
 
   const status = tournamentState?.status || 'REGISTRATION';
   const round = tournamentState?.round || 0;
