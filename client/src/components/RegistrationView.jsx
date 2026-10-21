@@ -18,7 +18,6 @@ export default function RegistrationView({
   const [avatar, setAvatar] = useState(AVATARS[0]);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [customServerUrl, setCustomServerUrl] = useState(serverUrl || '');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -29,12 +28,6 @@ export default function RegistrationView({
     setError('');
     sound.playClick();
     setIsSubmitting(true);
-
-    if (!isConnected) {
-      setIsSubmitting(false);
-      setError('Cannot join: Game server is offline or unreachable. Please connect backend server or enter Demo Mode below.');
-      return;
-    }
 
     onRegister(
       {
@@ -53,6 +46,7 @@ export default function RegistrationView({
       setIsSubmitting(false);
     }, 6000);
   };
+
 
   const players = tournamentState?.players || [];
   const activeCount = tournamentState?.stats?.activeCount || 0;
@@ -108,57 +102,6 @@ export default function RegistrationView({
               )}
             </div>
           </div>
-
-          {/* Offline Notice & Server URL Config */}
-          {!isConnected && (
-            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 text-xs space-y-2.5">
-              <div className="flex items-center gap-2 font-bold text-amber-400">
-                <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" />
-                <span>BACKEND SERVER DISCONNECTED</span>
-              </div>
-              <p className="text-[11px] text-zinc-300 leading-relaxed">
-                Cloudflare Pages hosts the frontend app, but real-time duels require the CLUTCH Node.js backend. If your backend is deployed (e.g. Render/Railway/VPS) or running locally, enter its URL below:
-              </p>
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="text"
-                  value={customServerUrl}
-                  onChange={(e) => setCustomServerUrl(e.target.value)}
-                  placeholder="https://clutch-backend.onrender.com"
-                  className="flex-1 px-3 py-2 rounded-lg bg-black/80 border border-zinc-700 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-orange-500 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (customServerUrl.trim()) {
-                      onUpdateServerUrl?.(customServerUrl.trim());
-                    }
-                  }}
-                  className="px-3.5 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shrink-0 cursor-pointer transition shadow"
-                >
-                  Connect
-                </button>
-              </div>
-              {onDemoRegister && (
-                <div className="pt-2 border-t border-amber-500/20 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[11px] text-zinc-400">Want to test the player interface immediately?</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!name.trim()) {
-                        setError('Please enter your display name first');
-                        return;
-                      }
-                      onDemoRegister({ name: name.trim(), avatar });
-                    }}
-                    className="text-xs font-bold text-orange-400 hover:text-orange-300 underline cursor-pointer"
-                  >
-                    Enter in Demo Mode &rarr;
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (

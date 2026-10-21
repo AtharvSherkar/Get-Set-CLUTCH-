@@ -10,24 +10,24 @@ import ProjectorView from './components/ProjectorView';
 import FinaleCallModal from './components/FinaleCallModal';
 import { sound } from './utils/audio';
 
-// Resolves the backend server URL with maximum flexibility:
-// 1. URL search param: ?server=https://...
-// 2. localStorage: 'clutch_server_url'
-// 3. Environment variables: VITE_SERVER_URL or REACT_APP_SERVER_URL
-// 4. Vite dev default: http://localhost:3001
+// Production backend endpoint running on Render:
+const PRODUCTION_BACKEND_URL = 'https://get-set-clutch.onrender.com';
+
 const getInitialServerUrl = () => {
-  if (typeof window === 'undefined') return undefined;
+  if (typeof window === 'undefined') return PRODUCTION_BACKEND_URL;
   try {
     const params = new URLSearchParams(window.location.search);
     const paramServer = params.get('server');
     if (paramServer && paramServer.trim() !== '') {
-      localStorage.setItem('clutch_server_url', paramServer.trim());
       return paramServer.trim();
     }
-    const saved = localStorage.getItem('clutch_server_url');
-    if (saved && saved.trim() !== '') return saved.trim();
   } catch (e) {
     // fallback
+  }
+
+  // Local development on port 5173
+  if (window.location.port === '5173') {
+    return `http://${window.location.hostname}:3001`;
   }
 
   const envUrl =
@@ -37,10 +37,8 @@ const getInitialServerUrl = () => {
 
   if (envUrl && envUrl.trim() !== '') return envUrl.trim();
 
-  if (window.location.port === '5173') {
-    return `http://${window.location.hostname}:3001`;
-  }
-  return undefined;
+  // Always default to live Render backend
+  return PRODUCTION_BACKEND_URL;
 };
 
 export default function App() {
@@ -163,16 +161,32 @@ export default function App() {
 
   // User actions
   const handleRegister = (data, callbacks = {}) => {
-    if (!socket || !socket.connected) {
-      callbacks.onError?.('Game server is offline or unreachable. Please connect a backend.');
+    if (socket && socket.connected) {
+      socket.emit('register_player', data);
+      try {
+        window.history.pushState(null, '', '/waiting-room');
+      } catch (e) {}
       return;
     }
-    socket.emit('register_player', data);
-    try {
-      window.history.pushState(null, '', '/waiting-room');
-    } catch (e) {
-      // fallback
+
+    if (socket) {
+      const onConnectOnce = () => {
+        socket.emit('register_player', data);
+        try {
+          window.history.pushState(null, '', '/waiting-room');
+        } catch (e) {}
+      };
+      socket.once('connect', onConnectOnce);
+      setTimeout(() => {
+        socket.off('connect', onConnectOnce);
+        if (!socket.connected) {
+          callbacks.onError?.('Arena server is waking up. Please tap Join again in a few seconds.');
+        }
+      }, 4000);
+      return;
     }
+
+    callbacks.onError?.('Connecting to tournament arena... please tap Join again in a few seconds.');
   };
 
   const handleDemoRegister = (data) => {
