@@ -243,6 +243,7 @@ export default function DuelArena({
             gesture={opponentDisplayedGesture}
             isTop={true}
             isShaking={isShaking}
+            isClutch={handsRevealed && (currentBeat === 'CLUTCH' || status === 'EVALUATING')}
             label={showOutcome ? (opponentRevealedMove || 'rock') : ''}
           />
         </div>
@@ -377,6 +378,7 @@ export default function DuelArena({
             gesture={localDisplayedGesture}
             isTop={false}
             isShaking={isShaking}
+            isClutch={handsRevealed && (currentBeat === 'CLUTCH' || status === 'EVALUATING')}
             label={showOutcome ? (localRevealedMove || selectedMove || 'rock') : ''}
           />
         </div>
