@@ -2,12 +2,18 @@
   "name": "clutch-battle-royale",
   "version": "1.0.0",
   "description": "CLUTCH - Real-Time Battle Royale Rock-Paper-Scissors Tournament Platform",
+  "type": "module",
   "scripts": {
     "server": "node server/index.js",
     "client": "npm run dev --prefix client",
     "build": "npm run build --prefix client",
     "dev": "node dev-runner.js",
     "start": "node server/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
   },
   "keywords": ["rock-paper-scissors", "battle-royale", "esports", "clutch", "real-time"],
   "author": "CLUTCH Gaming Committee",
