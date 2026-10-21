@@ -314,6 +314,8 @@ export class TournamentManager {
       this.matches.push({
         id: matchId,
         round: this.round,
+        timestamp: Date.now(),
+        completedAt: null,
         player1: { id: p1.id, name: p1.name, avatar: p1.avatar, studentId: p1.studentId, isBot: p1.isBot, isSystemBot: Boolean(p1.isSystemBot) },
         player2: { id: p2.id, name: p2.name, avatar: p2.avatar, studentId: p2.studentId, isBot: p2.isBot, isSystemBot: Boolean(p2.isSystemBot) },
         p1Move: null,
@@ -327,10 +329,10 @@ export class TournamentManager {
 
     this.broadcastState();
 
-    // Short breather in MATCHMAKING before synchronized countdown kicks off
+    // Fast 800ms transition into synchronized countdown beats
     setTimeout(() => {
       this.beginCountdown();
-    }, 2500);
+    }, 800);
   }
 
   submitMove(socketId, move) {
@@ -352,13 +354,15 @@ export class TournamentManager {
 
   beginCountdown() {
     this.status = TournamentStatus.COUNTDOWN;
+    this.currentBeat = CountdownBeats.ROCK;
+    this.broadcastState();
+
     // Synchronized 4-beat "Rock, Paper, Scissor, Clutch!" sequence
-    // Total duration: ~2.8 to 3.0 seconds (700+700+700+900 = 3000ms)
     const beats = [
-      { beat: CountdownBeats.ROCK, duration: 700 },
-      { beat: CountdownBeats.PAPER, duration: 700 },
-      { beat: CountdownBeats.SCISSOR, duration: 700 },
-      { beat: CountdownBeats.CLUTCH, duration: 900 }
+      { beat: CountdownBeats.ROCK, duration: 800 },
+      { beat: CountdownBeats.PAPER, duration: 800 },
+      { beat: CountdownBeats.SCISSOR, duration: 800 },
+      { beat: CountdownBeats.CLUTCH, duration: 1100 }
     ];
 
     // Shared round start timestamp for client-side sync
@@ -371,6 +375,7 @@ export class TournamentManager {
       if (currentStep < beats.length) {
         const { beat, duration } = beats[currentStep];
         this.currentBeat = beat;
+        const beatStartTimestamp = Date.now();
 
         // Broadcast beat event for audio/visual sync with shared timestamp
         this.io.emit('countdown_beat', {
@@ -380,14 +385,17 @@ export class TournamentManager {
           totalSteps: beats.length,
           duration,
           roundStartTimestamp,
+          beatStartTimestamp,
           isSelectionLocked: beat === CountdownBeats.CLUTCH
         });
 
         // If it's the CLUTCH beat, bot selections and locks execute!
         if (beat === CountdownBeats.CLUTCH) {
           this.executeBotMovesAndLocks();
-          this.broadcastState();
         }
+
+        // Real-time state synchronization broadcast on EVERY single beat
+        this.broadcastState();
 
         currentStep++;
         this.countdownTimer = setTimeout(executeStep, duration);
@@ -577,14 +585,23 @@ export class TournamentManager {
       }
     }
 
-    // Save history
-    this.roundHistory.push({
+    // Mark completed timestamp on all matches
+    const completedAt = Date.now();
+    for (const match of this.matches) {
+      match.completedAt = completedAt;
+    }
+
+    // Save history with timestamp
+    const roundRecord = {
       round: this.round,
+      timestamp: completedAt,
       matches: JSON.parse(JSON.stringify(this.matches)),
       activeCount: this.getActiveContenders().length,
       spectatorCount: this.getSpectators().length
-    });
+    };
+    this.roundHistory.push(roundRecord);
 
+    this.io.emit('match_results_evaluated', roundRecord);
     this.broadcastState();
 
     // Give players 4 seconds to experience the dramatic win/loss/draw outcome
@@ -749,6 +766,9 @@ export class TournamentManager {
       },
       matches: this.matches.map(m => ({
         id: m.id,
+        round: m.round,
+        timestamp: m.timestamp || Date.now(),
+        completedAt: m.completedAt || null,
         player1: m.player1,
         player2: m.player2,
         status: m.status,
@@ -758,6 +778,7 @@ export class TournamentManager {
         winnerId: m.winnerId,
         loserId: m.loserId
       })),
+      roundHistory: this.roundHistory,
       finalists: this.finalists.map(f => ({
         id: f.id,
         name: f.name,

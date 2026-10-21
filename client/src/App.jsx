@@ -206,6 +206,7 @@ export default function App() {
                   status === 'LOCKED' ||
                   status === 'EVALUATING') ? (
                   <DuelArena
+                    socket={socket}
                     currentMatch={currentMatch}
                     currentPlayer={currentPlayer}
                     tournamentState={tournamentState}

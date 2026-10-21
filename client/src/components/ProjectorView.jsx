@@ -114,8 +114,9 @@ export default function ProjectorView({ tournamentState }) {
             </h2>
           </div>
           {status === 'COUNTDOWN' && (
-            <div className="text-base font-black px-4 py-1.5 rounded-full bg-[#FF5500] text-black font-['Orbitron',sans-serif] animate-pulse">
-              COUNTDOWN: {currentBeat}
+            <div className="text-base font-black px-4 py-1.5 rounded-full bg-[#FF5500] text-black font-['Orbitron',sans-serif] animate-pulse flex items-center gap-1.5">
+              <span>⚡ BEAT:</span>
+              <span className="tracking-widest uppercase">{currentBeat}</span>
             </div>
           )}
         </div>

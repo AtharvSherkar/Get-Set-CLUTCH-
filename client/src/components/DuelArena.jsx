@@ -5,6 +5,7 @@ import { sound } from '../utils/audio';
 import { Shield, Zap, CheckCircle2, Lock, Flame } from 'lucide-react';
 
 export default function DuelArena({
+  socket,
   currentMatch,
   currentPlayer,
   tournamentState,
@@ -15,10 +16,71 @@ export default function DuelArena({
   const [clutchShake, setClutchShake] = useState(false);
   const [handsRevealed, setHandsRevealed] = useState(false);
   const [showOutcome, setShowOutcome] = useState(false);
+  const [activeBeat, setActiveBeat] = useState(null);
 
-  const status = tournamentState?.status || 'COUNTDOWN';
-  const currentBeat = tournamentState?.currentBeat || 'READY';
+  // Derive current beat directly from active real-time socket event or server state
+  const currentBeat = activeBeat || tournamentState?.currentBeat || 'READY';
+  const status =
+    tournamentState?.status === 'EVALUATING' || tournamentState?.status === 'ROUND_COMPLETE'
+      ? tournamentState.status
+      : activeBeat
+      ? 'COUNTDOWN'
+      : tournamentState?.status || 'COUNTDOWN';
   const round = tournamentState?.round || 1;
+
+  // Reset local beat and selection when round changes or matchmaking begins
+  useEffect(() => {
+    if (tournamentState?.status === 'MATCHMAKING') {
+      setActiveBeat(null);
+      setSelectedMove(null);
+      setLockedMove(null);
+      setShowOutcome(false);
+      setHandsRevealed(false);
+    }
+  }, [tournamentState?.status, tournamentState?.round]);
+
+  // Real-time millisecond-precise Socket Synchronizer for 4-Beat Countdown
+  useEffect(() => {
+    if (!socket) return;
+    const handleBeat = (data) => {
+      setActiveBeat(data.beat);
+      if (['ROCK', 'PAPER', 'SCISSOR'].includes(data.beat)) {
+        sound.playBeat(data.beat);
+        setHandsRevealed(false);
+        setShowOutcome(false);
+      } else if (data.beat === 'CLUTCH') {
+        sound.playBeat('CLUTCH');
+        if (navigator.vibrate) navigator.vibrate(180);
+        setClutchShake(true);
+        setTimeout(() => setClutchShake(false), 600);
+        setHandsRevealed(false);
+        setTimeout(() => setHandsRevealed(true), 280);
+      }
+    };
+    socket.on('countdown_beat', handleBeat);
+    return () => socket.off('countdown_beat', handleBeat);
+  }, [socket]);
+
+  // Fallback if socket event missed: sync from tournamentState
+  useEffect(() => {
+    const serverBeat = tournamentState?.currentBeat;
+    if (serverBeat && ['ROCK', 'PAPER', 'SCISSOR', 'CLUTCH'].includes(serverBeat)) {
+      if (activeBeat !== serverBeat) {
+        sound.playBeat(serverBeat);
+        setActiveBeat(serverBeat);
+        if (serverBeat === 'CLUTCH') {
+          if (navigator.vibrate) navigator.vibrate(180);
+          setClutchShake(true);
+          setTimeout(() => setClutchShake(false), 600);
+          setHandsRevealed(false);
+          setTimeout(() => setHandsRevealed(true), 280);
+        } else {
+          setHandsRevealed(false);
+          setShowOutcome(false);
+        }
+      }
+    }
+  }, [tournamentState?.currentBeat, activeBeat]);
 
   // Determine which player is local vs opponent
   const isP1 = currentMatch?.player1?.id === currentPlayer?.id;
@@ -40,49 +102,16 @@ export default function DuelArena({
   // Inputs are locked definitively on the CLUTCH beat or during evaluation/round completion
   const isInputLocked = currentBeat === 'CLUTCH' || status === 'EVALUATING' || status === 'ROUND_COMPLETE';
 
-  // Synchronized Beat Flow & Hand Transition State Machine
-  useEffect(() => {
-    if (['ROCK', 'PAPER', 'SCISSOR'].includes(currentBeat)) {
-      sound.playBeat(currentBeat);
-      setHandsRevealed(false);
-      setShowOutcome(false);
-    } else if (currentBeat === 'CLUTCH') {
-      sound.playBeat('CLUTCH');
-
-      // Haptic feedback on mobile devices
-      if (navigator.vibrate) {
-        navigator.vibrate(140);
-      }
-
-      // Viewport micro-shake on impact
-      setClutchShake(true);
-      const shakeTimer = setTimeout(() => setClutchShake(false), 500);
-
-      // Micro-beat hold (~280ms) while closed-fist before morphing open to chosen gestures
-      setHandsRevealed(false);
-      const morphTimer = setTimeout(() => {
-        setHandsRevealed(true);
-      }, 280);
-
-      return () => {
-        clearTimeout(shakeTimer);
-        clearTimeout(morphTimer);
-      };
-    }
-  }, [currentBeat]);
-
   // Post-"CLUTCH" Outcome Reveal Timing:
   // ONLY after "CLUTCH" has flashed and hands have opened does the match outcome display
   useEffect(() => {
     if (status === 'EVALUATING') {
       if (handsRevealed) {
-        // Hands are already open; reveal match outcome after a clean micro-beat
         const timer = setTimeout(() => {
           setShowOutcome(true);
         }, 120);
         return () => clearTimeout(timer);
       } else {
-        // Fallback if status jumped straight to EVALUATING: open hands first, then reveal outcome
         setHandsRevealed(true);
         const timer = setTimeout(() => {
           setShowOutcome(true);
@@ -94,7 +123,7 @@ export default function DuelArena({
     }
   }, [status, handsRevealed]);
 
-  // Handle victory / defeat audio - triggers strictly upon outcome reveal
+  // Victory / defeat sound upon outcome display
   useEffect(() => {
     if (showOutcome && status === 'EVALUATING') {
       if (isWinner || isDraw) {
@@ -105,7 +134,7 @@ export default function DuelArena({
     }
   }, [showOutcome, status, isWinner, isLoser, isDraw]);
 
-  // Handle move card selection
+  // Handle move selection (pre-selection allowed, locks on CLUTCH)
   const handleSelectMove = (move) => {
     if (isInputLocked) {
       return; // Locked!
@@ -134,7 +163,7 @@ export default function DuelArena({
     opponentDisplayedGesture = 'rock';
   }
 
-  // Both hands pump downwards/upwards during beats 1, 2, and 3
+  // Both hands bump vertically during beats 1, 2, and 3
   const isShaking =
     status === 'COUNTDOWN' && ['ROCK', 'PAPER', 'SCISSOR'].includes(currentBeat);
 
@@ -142,6 +171,14 @@ export default function DuelArena({
     <div className={`w-full max-w-lg mx-auto flex flex-col justify-between min-h-[calc(100vh-70px)] px-3 py-2 select-none relative overflow-hidden ${clutchShake ? 'animate-micro-shake' : ''}`}>
       {/* Background fiery battle ambient glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      {/* Explosive visual shockwave on CLUTCH! lock-in beat */}
+      {currentBeat === 'CLUTCH' && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden z-20">
+          <div className="w-56 h-56 rounded-full border-4 border-[#FF5500] bg-orange-500/20 animate-shockwave-1 shadow-[0_0_60px_rgba(255,85,0,0.9)]"></div>
+          <div className="w-56 h-56 rounded-full border-2 border-amber-400 bg-amber-500/10 animate-shockwave-2 shadow-[0_0_90px_rgba(255,159,28,0.7)]"></div>
+        </div>
+      )}
 
       {/* TOP: OPPONENT HUD */}
       <div className="glass-panel rounded-2xl p-3 border border-red-500/30 flex items-center justify-between shadow-lg relative z-10">
@@ -195,8 +232,13 @@ export default function DuelArena({
 
       {/* CENTER ARENA: MIRRORED DUAL COMBAT HANDS */}
       <div className="flex-1 flex flex-col items-center justify-center relative py-2 my-auto">
-        {/* Opponent Hand (Top, facing down) */}
-        <div className={`w-full flex justify-center -mb-6 sm:-mb-8 relative z-0 ${handsRevealed && (currentBeat === 'CLUTCH' || status === 'EVALUATING') ? 'animate-hand-snap' : ''}`}>
+        {/* Opponent Hand (Top, facing down) - Bumps vertically downwards on beats 1, 2, 3 */}
+        <div
+          key={`opp-hand-${currentBeat}`}
+          className={`w-full flex justify-center -mb-6 sm:-mb-8 relative z-0 ${
+            isShaking ? 'animate-bump-down' : ''
+          } ${handsRevealed && (currentBeat === 'CLUTCH' || status === 'EVALUATING') ? 'animate-hand-snap' : ''}`}
+        >
           <HandIllustration
             gesture={opponentDisplayedGesture}
             isTop={true}
@@ -205,47 +247,95 @@ export default function DuelArena({
           />
         </div>
 
-        {/* CENTER TYPOGRAPHY CONTAINER (Directly between top & bottom hands) */}
-        <div className="my-2 relative z-20 flex flex-col items-center justify-center min-h-[90px] h-[90px]">
-          {/* Synchronized 4-Beat Text Flash (Plain text words only, no icons/emojis) */}
+        {/* CENTER TYPOGRAPHY & BEAT POPUP CONTAINER (Directly between top & bottom hands) */}
+        <div className="my-2 relative z-30 flex flex-col items-center justify-center min-h-[110px]">
+          {/* Matchmaking Standby Message (No countdown timer numbers) */}
+          {status === 'MATCHMAKING' && (
+            <div className="pointer-events-none px-4 py-2 rounded-2xl bg-black/80 border border-orange-500/50 backdrop-blur-sm shadow-[0_0_20px_rgba(255,85,0,0.3)] animate-pulse">
+              <span className="font-bold font-['Space_Grotesk',sans-serif] text-orange-400 tracking-wider uppercase text-xs sm:text-sm">
+                ⚔️ Contenders Ready — Stand By...
+              </span>
+            </div>
+          )}
+
+          {/* RHYTHM TRACKER: ROCK - PAPER - SCISSOR - CLUTCH (Pure words, NO 1 2 3) */}
           {status === 'COUNTDOWN' && (
-            <div className="flex items-center justify-center">
+            <div className="flex items-center gap-1.5 sm:gap-2 mb-2 select-none pointer-events-none">
+              {['ROCK', 'PAPER', 'SCISSOR', 'CLUTCH'].map((b) => {
+                const isCurrent = currentBeat === b;
+                const beatOrder = ['ROCK', 'PAPER', 'SCISSOR', 'CLUTCH'];
+                const isPassed = beatOrder.indexOf(currentBeat) >= beatOrder.indexOf(b);
+                return (
+                  <span
+                    key={`track-${b}`}
+                    className={`px-2.5 sm:px-3 py-0.5 rounded-full text-[10px] sm:text-xs font-black tracking-wider uppercase font-['Orbitron',sans-serif] transition-all duration-150 ${
+                      isCurrent
+                        ? b === 'CLUTCH'
+                          ? 'bg-[#FF5500] text-white shadow-[0_0_18px_rgba(255,85,0,0.9)] scale-110 border border-orange-300'
+                          : 'bg-white text-black shadow-[0_0_14px_rgba(255,255,255,0.9)] scale-105 border border-white'
+                        : isPassed
+                        ? 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                        : 'bg-zinc-900/60 text-zinc-600 border border-zinc-800'
+                    }`}
+                  >
+                    {b === 'CLUTCH' ? '⚡ CLUTCH' : b}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* DYNAMIC BEAT WORDS POPUP (ROCK -> PAPER -> SCISSOR -> CLUTCH!) */}
+          {status === 'COUNTDOWN' && ['ROCK', 'PAPER', 'SCISSOR', 'CLUTCH'].includes(currentBeat) && (
+            <div
+              key={`popup-word-${currentBeat}`}
+              className="pointer-events-none flex flex-col items-center justify-center select-none"
+            >
               {currentBeat === 'ROCK' && (
-                <span
-                  key="beat-ROCK"
-                  className="font-black font-['Orbitron',sans-serif] tracking-widest text-4xl sm:text-5xl text-white animate-beat-word select-none drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]"
-                >
-                  ROCK
-                </span>
+                <div className="animate-word-popup px-6 py-2 sm:px-9 sm:py-2.5 rounded-2xl bg-black/90 border-2 border-white/80 shadow-[0_0_35px_rgba(255,255,255,0.7)] flex items-center gap-3 backdrop-blur-md">
+                  <span className="text-3xl sm:text-4xl">🪨</span>
+                  <span className="font-black font-['Orbitron',sans-serif] tracking-widest text-3xl sm:text-5xl text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.9)]">
+                    ROCK
+                  </span>
+                </div>
               )}
+
               {currentBeat === 'PAPER' && (
-                <span
-                  key="beat-PAPER"
-                  className="font-black font-['Orbitron',sans-serif] tracking-widest text-4xl sm:text-5xl text-white animate-beat-word select-none drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]"
-                >
-                  PAPER
-                </span>
+                <div className="animate-word-popup px-6 py-2 sm:px-9 sm:py-2.5 rounded-2xl bg-black/90 border-2 border-sky-400 shadow-[0_0_35px_rgba(56,189,248,0.7)] flex items-center gap-3 backdrop-blur-md">
+                  <span className="text-3xl sm:text-4xl">📄</span>
+                  <span className="font-black font-['Orbitron',sans-serif] tracking-widest text-3xl sm:text-5xl text-sky-300 drop-shadow-[0_0_20px_rgba(56,189,248,0.9)]">
+                    PAPER
+                  </span>
+                </div>
               )}
+
               {currentBeat === 'SCISSOR' && (
-                <span
-                  key="beat-SCISSOR"
-                  className="font-black font-['Orbitron',sans-serif] tracking-widest text-4xl sm:text-5xl text-white animate-beat-word select-none drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]"
-                >
-                  SCISSOR
-                </span>
+                <div className="animate-word-popup px-6 py-2 sm:px-9 sm:py-2.5 rounded-2xl bg-black/90 border-2 border-amber-400 shadow-[0_0_35px_rgba(251,191,36,0.7)] flex items-center gap-3 backdrop-blur-md">
+                  <span className="text-3xl sm:text-4xl">✂️</span>
+                  <span className="font-black font-['Orbitron',sans-serif] tracking-widest text-3xl sm:text-5xl text-amber-300 drop-shadow-[0_0_20px_rgba(251,191,36,0.9)]">
+                    SCISSOR
+                  </span>
+                </div>
               )}
+
               {currentBeat === 'CLUTCH' && (
-                <span
-                  key="beat-CLUTCH"
-                  className="font-black font-['Orbitron',sans-serif] tracking-widest text-4xl sm:text-6xl text-[#FF5500] animate-clutch-word select-none drop-shadow-[0_0_35px_rgba(255,85,0,0.9)]"
-                >
-                  CLUTCH
-                </span>
+                <div className="animate-clutch-popup px-6 py-2.5 sm:px-10 sm:py-3 rounded-3xl bg-black/95 border-3 border-[#FF5500] shadow-[0_0_60px_rgba(255,85,0,1)] flex flex-col items-center justify-center backdrop-blur-md">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="text-2xl sm:text-4xl animate-bounce">⚡</span>
+                    <span className="font-black font-['Orbitron',sans-serif] tracking-widest text-4xl sm:text-6xl text-[#FF5500] drop-shadow-[0_0_40px_rgba(255,85,0,1)]">
+                      CLUTCH!
+                    </span>
+                    <span className="text-2xl sm:text-4xl animate-bounce">⚡</span>
+                  </div>
+                  <span className="text-[9px] sm:text-[11px] font-black tracking-widest uppercase font-mono text-orange-300 mt-0.5">
+                    CHOICES LOCKED!
+                  </span>
+                </div>
               )}
             </div>
           )}
 
-          {/* Post-"CLUTCH" Evaluation Outcome (Revealed ONLY after CLUTCH & hands open) */}
+          {/* Post-"CLUTCH" Evaluation Outcome */}
           {status === 'EVALUATING' && showOutcome && (
             <div className="animate-outcome-pop">
               {isWinner && (
@@ -276,8 +366,13 @@ export default function DuelArena({
           )}
         </div>
 
-        {/* Local Player Hand (Bottom, facing up) */}
-        <div className={`w-full flex justify-center -mt-6 sm:-mt-8 relative z-0 ${handsRevealed && (currentBeat === 'CLUTCH' || status === 'EVALUATING') ? 'animate-hand-snap' : ''}`}>
+        {/* Local Player Hand (Bottom, facing up) - Bumps vertically upwards on beats 1, 2, 3 */}
+        <div
+          key={`local-hand-${currentBeat}`}
+          className={`w-full flex justify-center -mt-6 sm:-mt-8 relative z-0 ${
+            isShaking ? 'animate-bump-up' : ''
+          } ${handsRevealed && (currentBeat === 'CLUTCH' || status === 'EVALUATING') ? 'animate-hand-snap' : ''}`}
+        >
           <HandIllustration
             gesture={localDisplayedGesture}
             isTop={false}
@@ -296,14 +391,19 @@ export default function DuelArena({
             <span className="font-bold text-white tracking-wide">{currentPlayer?.name} (YOU)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            {lockedMove ? (
+            {isInputLocked ? (
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/40 font-mono font-bold uppercase text-[10px]">
+                <Lock className="w-3 h-3 text-orange-400" />
+                CHOICES LOCKED AT CLUTCH!
+              </span>
+            ) : lockedMove ? (
               <span className="flex items-center gap-1 text-green-400 font-bold uppercase text-[11px]">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Selected: {lockedMove}
+                Selected: {lockedMove.toUpperCase()}
               </span>
             ) : (
               <span className="text-orange-400 font-semibold animate-pulse text-[11px]">
-                Pick your gesture!
+                Pick your gesture before CLUTCH!
               </span>
             )}
           </div>

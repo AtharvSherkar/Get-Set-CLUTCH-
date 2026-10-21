@@ -8,7 +8,8 @@ import {
   Shield, Play, Pause, RotateCcw, Bot, Swords, Users,
   Check, X, Eye, EyeOff, Search, Trophy, Radio, PhoneCall,
   Flame, Zap, AlertTriangle, RefreshCw, Skull, Clock,
-  Crown, Sparkles, UserCheck, UserX, ArrowRight
+  Crown, Sparkles, UserCheck, UserX, ArrowRight,
+  History, BarChart3, Filter, Award, Target, Activity
 } from 'lucide-react';
 import KahootQrBanner from './KahootQrBanner';
 
@@ -25,11 +26,13 @@ export default function AdminPanel({
   onResetTournament,
   onToggleAutoAdvance
 }) {
-  const [activeTab, setActiveTab] = useState('WAITING'); // 'WAITING' | 'ELIMINATIONS' | 'DUELS' | 'DIRECTORY'
+  const [activeTab, setActiveTab] = useState('WAITING'); // 'WAITING' | 'HISTORY' | 'MATRIX' | 'ELIMINATIONS' | 'DUELS'
   const [confirmReset, setConfirmReset] = useState(false);
   const [revealMoves, setRevealMoves] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'SPECTATOR' | 'BOT'
+  const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'FINALIST' | 'SPECTATOR' | 'BOT'
+  const [historyRoundFilter, setHistoryRoundFilter] = useState('ALL'); // 'ALL' | 1 | 2...
+  const [historyResultFilter, setHistoryResultFilter] = useState('ALL'); // 'ALL' | 'WIN' | 'DRAW'
 
   const status = tournamentState?.status || 'REGISTRATION';
   const round = tournamentState?.round || 0;
@@ -41,12 +44,14 @@ export default function AdminPanel({
   const matches = tournamentState?.matches || [];
   const players = tournamentState?.players || [];
   const currentBeat = tournamentState?.currentBeat || 'READY';
+  const roundHistory = tournamentState?.roundHistory || [];
 
   // Live synced lists (bots strictly excluded from waiting lobby)
   const lastTwoPlayers = tournamentState?.lastTwoPlayers || [];
   const waitingPlayers = (tournamentState?.waitingPlayers || []).filter((p) => !p.isBot);
   const eliminations = tournamentState?.eliminations || [];
   const champion = tournamentState?.champion || null;
+  const finalists = tournamentState?.finalists || [];
 
   // Format relative timestamps
   const formatTime = (ts) => {
@@ -54,27 +59,126 @@ export default function AdminPanel({
     const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
     if (sec < 60) return `${sec}s ago`;
     const min = Math.floor(sec / 60);
-    return `${min}m ago`;
+    if (min < 60) return `${min}m ago`;
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const getMoveIcon = (move) => {
-    if (move === 'rock') return '🪨 Rock';
-    if (move === 'paper') return '📄 Paper';
-    if (move === 'scissors') return '✂️ Scissors';
-    return move || 'Unknown';
+    if (!move) return 'Pending';
+    const norm = move.toLowerCase();
+    if (norm === 'rock') return '🪨 Rock';
+    if (norm === 'paper') return '📄 Paper';
+    if (norm === 'scissors') return '✂️ Scissors';
+    return move;
   };
 
-  // Filtered players list for directory
+  const renderMoveBadge = (move, isWinner = false) => {
+    if (!move || move === 'LOCKED') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-400 font-mono text-[11px] font-bold">
+          <span>🔒</span>
+          <span>{move || 'PENDING'}</span>
+        </span>
+      );
+    }
+    const norm = move.toLowerCase();
+    if (norm === 'rock') {
+      return (
+        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-['Space_Grotesk'] border ${
+          isWinner ? 'bg-orange-500/30 text-orange-300 border-orange-500/70 shadow-[0_0_12px_rgba(255,85,0,0.5)]' : 'bg-orange-500/15 text-orange-400 border-orange-500/30'
+        }`}>
+          <span>🪨</span>
+          <span>ROCK</span>
+        </span>
+      );
+    }
+    if (norm === 'paper') {
+      return (
+        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-['Space_Grotesk'] border ${
+          isWinner ? 'bg-blue-500/30 text-blue-300 border-blue-500/70 shadow-[0_0_12px_rgba(59,130,246,0.5)]' : 'bg-blue-500/15 text-blue-400 border-blue-500/30'
+        }`}>
+          <span>📄</span>
+          <span>PAPER</span>
+        </span>
+      );
+    }
+    if (norm === 'scissors') {
+      return (
+        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-['Space_Grotesk'] border ${
+          isWinner ? 'bg-emerald-500/30 text-emerald-300 border-emerald-500/70 shadow-[0_0_12px_rgba(16,185,129,0.5)]' : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+        }`}>
+          <span>✂️</span>
+          <span>SCISSORS</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 text-xs font-mono">
+        {move}
+      </span>
+    );
+  };
+
+  // Compile all historical and active matches for comprehensive live tracking
+  const allHistoricalMatches = [];
+  roundHistory.forEach((rh) => {
+    (rh.matches || []).forEach((m) => {
+      allHistoricalMatches.push({
+        ...m,
+        round: rh.round,
+        timestamp: m.completedAt || m.timestamp || rh.timestamp,
+        isCompleted: true
+      });
+    });
+  });
+
+  // Include current round active matches if not already archived
+  if (matches.length > 0 && !roundHistory.some((rh) => rh.round === round)) {
+    matches.forEach((m) => {
+      allHistoricalMatches.unshift({
+        ...m,
+        round: round,
+        timestamp: m.timestamp || Date.now(),
+        isCompleted: m.status === 'COMPLETED'
+      });
+    });
+  }
+
+  // Calculate move distribution metrics
+  const moveStats = { rock: 0, paper: 0, scissors: 0 };
+  allHistoricalMatches.forEach((m) => {
+    if (m.p1Move && moveStats[m.p1Move.toLowerCase()] !== undefined) moveStats[m.p1Move.toLowerCase()]++;
+    if (m.p2Move && moveStats[m.p2Move.toLowerCase()] !== undefined) moveStats[m.p2Move.toLowerCase()]++;
+  });
+
+  // Filtered match history
+  const filteredHistoryMatches = allHistoricalMatches.filter((m) => {
+    if (historyRoundFilter !== 'ALL' && m.round !== Number(historyRoundFilter)) return false;
+    if (historyResultFilter === 'WIN' && m.result !== 'P1_WIN' && m.result !== 'P2_WIN') return false;
+    if (historyResultFilter === 'DRAW' && m.result !== 'DRAW') return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const p1Match = m.player1?.name?.toLowerCase().includes(q) || m.player1?.studentId?.toLowerCase().includes(q);
+      const p2Match = m.player2?.name?.toLowerCase().includes(q) || m.player2?.studentId?.toLowerCase().includes(q);
+      if (!p1Match && !p2Match) return false;
+    }
+    return true;
+  });
+
+  // Filtered players list for Competitor Status Overview & Matrix
   const filteredPlayers = players.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.studentId.toLowerCase().includes(searchQuery.toLowerCase());
+      p.studentId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (p.eliminatedBy && p.eliminatedBy.toLowerCase().includes(searchQuery.toLowerCase()));
 
     if (!matchesSearch) return false;
 
     if (filterStatus === 'ACTIVE') return p.status === 'active';
+    if (filterStatus === 'FINALIST') return finalists.some((f) => f.id === p.id) || p.acceptedFinale;
     if (filterStatus === 'SPECTATOR') return p.status === 'spectator';
     if (filterStatus === 'BOT') return p.isBot;
+    if (filterStatus === 'HUMAN') return !p.isBot;
     return true;
   });
 
@@ -445,7 +549,7 @@ export default function AdminPanel({
         </div>
       </div>
 
-      {/* 5. WORKSPACE TABS: WAITING LIST | ELIMINATIONS | DUELS | DIRECTORY */}
+      {/* 5. WORKSPACE TABS: WAITING LIST | MATCH HISTORY | COMPETITORS MATRIX | ELIMINATIONS | DUELS */}
       <div className="flex items-center justify-between border-b border-zinc-800 pb-3 flex-wrap gap-3">
         <div className="flex items-center gap-2 p-1 rounded-2xl bg-black/60 border border-zinc-800 overflow-x-auto">
           {/* TAB 1: LIVE WAITING LIST */}
@@ -465,7 +569,41 @@ export default function AdminPanel({
             </span>
           </button>
 
-          {/* TAB 2: LIVE ELIMINATIONS */}
+          {/* TAB 2: MATCH HISTORY & RESULTS */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('HISTORY')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+              activeTab === 'HISTORY'
+                ? 'bg-orange-600 text-white shadow-[0_0_15px_rgba(234,88,12,0.4)]'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+            }`}
+          >
+            <History className="w-3.5 h-3.5" />
+            <span>MATCH HISTORY</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-black/40 text-[10px] font-mono">
+              {allHistoricalMatches.length}
+            </span>
+          </button>
+
+          {/* TAB 3: COMPETITORS STATUS MATRIX */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('MATRIX')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+              activeTab === 'MATRIX'
+                ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>COMPETITORS MATRIX</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-black/40 text-[10px] font-mono">
+              {players.length}
+            </span>
+          </button>
+
+          {/* TAB 4: LIVE ELIMINATIONS */}
           <button
             type="button"
             onClick={() => setActiveTab('ELIMINATIONS')}
@@ -476,43 +614,26 @@ export default function AdminPanel({
             }`}
           >
             <Skull className="w-3.5 h-3.5" />
-            <span>ELIMINATIONS GRAVEYARD</span>
+            <span>GRAVEYARD</span>
             <span className="px-1.5 py-0.2 rounded-full bg-black/40 text-[10px] font-mono">
               {eliminations.length}
             </span>
           </button>
 
-          {/* TAB 3: LIVE DUELS */}
+          {/* TAB 5: LIVE DUELS */}
           <button
             type="button"
             onClick={() => setActiveTab('DUELS')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
               activeTab === 'DUELS'
-                ? 'bg-orange-600 text-white shadow-[0_0_15px_rgba(234,88,12,0.4)]'
+                ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(217,119,6,0.4)]'
                 : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
             }`}
           >
             <Swords className="w-3.5 h-3.5" />
-            <span>LIVE DUEL PAIRS</span>
+            <span>ACTIVE DUELS</span>
             <span className="px-1.5 py-0.2 rounded-full bg-black/40 text-[10px] font-mono">
               {matches.length}
-            </span>
-          </button>
-
-          {/* TAB 4: DIRECTORY */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('DIRECTORY')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-              activeTab === 'DIRECTORY'
-                ? 'bg-zinc-800 text-white'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>ALL CONTENDERS</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-black/40 text-[10px] font-mono">
-              {players.length}
             </span>
           </button>
         </div>
@@ -769,92 +890,521 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* 9. TAB CONTENT: MASTER CONTENDER DIRECTORY */}
-      {activeTab === 'DIRECTORY' && (
-        <div className="glass-panel rounded-2xl p-5 border border-zinc-800 space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-[#FF5500]" />
-              <h2 className="text-sm sm:text-base font-bold font-['Space_Grotesk',sans-serif] text-white">
-                ALL CONTENDERS DIRECTORY ({filteredPlayers.length} / {players.length})
-              </h2>
+      {/* 8. TAB CONTENT: LIVE MATCH HISTORY & PAIRING RESULTS */}
+      {activeTab === 'HISTORY' && (
+        <div className="glass-panel rounded-2xl p-5 border border-zinc-800 space-y-5">
+          {/* Section Header & Analytical Dashboard */}
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <History className="w-5 h-5 text-[#FF5500]" />
+                <h2 className="text-base sm:text-lg font-black font-['Orbitron',sans-serif] tracking-wider text-white">
+                  MATCH PAIRINGS & RESULTS HISTORY
+                </h2>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30 font-mono font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-ping"></span>
+                  LIVE SYNC
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Full transparent audit trail of every combat round, gestures thrown, winner knockouts, and ties.
+              </p>
             </div>
 
-            {/* Filter Pills */}
-            <div className="flex items-center gap-2">
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="py-1.5 px-2.5 rounded-lg bg-black/60 border border-zinc-800 text-xs text-zinc-300 outline-none"
-              >
-                <option value="ALL">All ({players.length})</option>
-                <option value="ACTIVE">Alive ({activeCount})</option>
-                <option value="SPECTATOR">Eliminated ({spectatorCount})</option>
-                <option value="BOT">AI Bots</option>
-              </select>
+            {/* Duel History Quick Metric Counters */}
+            <div className="flex flex-wrap items-center gap-2 bg-black/60 p-2 rounded-xl border border-zinc-800 text-xs">
+              <div className="px-3 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-center">
+                <span className="text-[9px] text-zinc-400 uppercase font-mono block">DUELS</span>
+                <span className="font-bold text-white font-mono">{allHistoricalMatches.length}</span>
+              </div>
+              <div className="px-3 py-1 rounded-lg bg-green-950/40 border border-green-500/30 text-center">
+                <span className="text-[9px] text-green-400 uppercase font-mono block">KNOCKOUTS</span>
+                <span className="font-bold text-green-300 font-mono">
+                  {allHistoricalMatches.filter((m) => m.result === 'P1_WIN' || m.result === 'P2_WIN').length}
+                </span>
+              </div>
+              <div className="px-3 py-1 rounded-lg bg-amber-950/40 border border-amber-500/30 text-center">
+                <span className="text-[9px] text-amber-400 uppercase font-mono block">DRAWS</span>
+                <span className="font-bold text-amber-300 font-mono">
+                  {allHistoricalMatches.filter((m) => m.result === 'DRAW').length}
+                </span>
+              </div>
+              <div className="h-6 w-px bg-zinc-800 hidden sm:block"></div>
+              {/* Gesture Distribution */}
+              <div className="flex items-center gap-1 text-[11px] text-zinc-300 font-mono px-2">
+                <span>🪨 {moveStats.rock}</span>
+                <span>•</span>
+                <span>📄 {moveStats.paper}</span>
+                <span>•</span>
+                <span>✂️ {moveStats.scissors}</span>
+              </div>
             </div>
           </div>
 
-          {/* Players Table */}
-          <div className="max-h-80 overflow-y-auto rounded-xl border border-zinc-800/80 bg-black/40">
+          {/* Filter Bar: By Round & By Result */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-black/40 p-3 rounded-xl border border-zinc-800/80">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-zinc-400 flex items-center gap-1 mr-1">
+                <Filter className="w-3.5 h-3.5 text-orange-400" />
+                <span>Round:</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setHistoryRoundFilter('ALL')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  historyRoundFilter === 'ALL'
+                    ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(255,85,0,0.5)]'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white'
+                }`}
+              >
+                All Rounds
+              </button>
+              {Array.from(new Set(allHistoricalMatches.map((m) => m.round))).map((r) => (
+                <button
+                  key={`round-filter-${r}`}
+                  type="button"
+                  onClick={() => setHistoryRoundFilter(r)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    historyRoundFilter === r
+                      ? 'bg-orange-500 text-white shadow-[0_0_10px_rgba(255,85,0,0.5)]'
+                      : 'bg-zinc-900 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Round {r}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-zinc-400 mr-1">Outcome:</span>
+              <button
+                type="button"
+                onClick={() => setHistoryResultFilter('ALL')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  historyResultFilter === 'ALL'
+                    ? 'bg-zinc-700 text-white'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white'
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setHistoryResultFilter('WIN')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  historyResultFilter === 'WIN'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white'
+                }`}
+              >
+                Decisive Wins
+              </button>
+              <button
+                type="button"
+                onClick={() => setHistoryResultFilter('DRAW')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  historyResultFilter === 'DRAW'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white'
+                }`}
+              >
+                Draws
+              </button>
+            </div>
+          </div>
+
+          {/* Matches Breakdown List */}
+          {filteredHistoryMatches.length === 0 ? (
+            <div className="py-16 text-center text-xs text-zinc-500 font-medium bg-black/30 rounded-2xl border border-zinc-800/60 space-y-2">
+              <History className="w-8 h-8 mx-auto text-zinc-600 opacity-50" />
+              <p>No match history records match the current filter.</p>
+              <p className="text-[11px] text-zinc-600">
+                Matches, choices, and outcomes log here in real-time as duels resolve!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3.5 max-h-[600px] overflow-y-auto pr-1">
+              {filteredHistoryMatches.map((m) => {
+                const p1Won = m.result === 'P1_WIN';
+                const p2Won = m.result === 'P2_WIN';
+                const isDraw = m.result === 'DRAW';
+                const isInProgress = m.status === 'IN_PROGRESS';
+
+                return (
+                  <div
+                    key={`${m.round}_${m.id}`}
+                    className={`p-4 rounded-2xl border transition-all ${
+                      p1Won || p2Won
+                        ? 'bg-zinc-900/80 border-green-500/30 hover:border-green-500/60 shadow-[0_0_15px_rgba(34,197,94,0.08)]'
+                        : isDraw
+                        ? 'bg-zinc-900/80 border-amber-500/30 hover:border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.08)]'
+                        : 'bg-zinc-900/80 border-orange-500/30 hover:border-orange-500/60'
+                    }`}
+                  >
+                    {/* Duel Meta Top Bar */}
+                    <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800/70 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/40 font-mono font-bold text-[10px]">
+                          ROUND {m.round}
+                        </span>
+                        <span className="text-[11px] font-mono text-zinc-500">#{m.id}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[11px] text-zinc-400 font-mono">
+                          {formatTime(m.timestamp)}
+                        </span>
+                        {isInProgress ? (
+                          <span className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/40 text-[10px] font-bold animate-pulse">
+                            ⚔️ LIVE IN ARENA
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 text-[10px] font-bold">
+                            COMPLETED
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 3-Column Combat Pair Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
+                      {/* Player 1 Card (3 cols) */}
+                      <div
+                        className={`md:col-span-3 p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                          p1Won
+                            ? 'bg-green-950/30 border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
+                            : p2Won
+                            ? 'bg-red-950/20 border-red-500/30 opacity-75'
+                            : 'bg-zinc-950/50 border-zinc-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="text-2xl p-1.5 rounded-lg bg-black/60 border border-zinc-800 flex-shrink-0">
+                            {m.player1.avatar}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-xs sm:text-sm text-white truncate">
+                                {m.player1.name}
+                              </span>
+                              {m.player1.isBot && (
+                                <span className="text-[9px] px-1 rounded bg-zinc-800 text-zinc-400 font-mono">
+                                  {m.player1.isSystemBot ? 'CLUTCH_BOT' : 'AI'}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-zinc-400 font-mono block">
+                              {m.player1.studentId}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Choice & Outcome */}
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          {renderMoveBadge(m.p1Move, p1Won)}
+                          {p1Won && (
+                            <span className="text-[10px] font-bold text-green-400 flex items-center gap-0.5">
+                              <Crown className="w-3 h-3 text-green-400" />
+                              <span>WINNER (+10)</span>
+                            </span>
+                          )}
+                          {p2Won && (
+                            <span className="text-[10px] font-bold text-red-400 flex items-center gap-0.5">
+                              <Skull className="w-3 h-3 text-red-400" />
+                              <span>ELIMINATED</span>
+                            </span>
+                          )}
+                          {isDraw && (
+                            <span className="text-[10px] font-bold text-amber-400 flex items-center gap-0.5">
+                              <Zap className="w-3 h-3 text-amber-400" />
+                              <span>ADVANCED</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Center VS Indicator (1 col) */}
+                      <div className="md:col-span-1 flex flex-col items-center justify-center py-1">
+                        <div className="w-8 h-8 rounded-full bg-black/80 border border-zinc-800 flex items-center justify-center shadow-lg">
+                          <Swords className="w-4 h-4 text-orange-400" />
+                        </div>
+                        <span className="text-[9px] font-black uppercase text-zinc-500 font-mono mt-1">
+                          VS
+                        </span>
+                      </div>
+
+                      {/* Player 2 Card (3 cols) */}
+                      <div
+                        className={`md:col-span-3 p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                          p2Won
+                            ? 'bg-green-950/30 border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
+                            : p1Won
+                            ? 'bg-red-950/20 border-red-500/30 opacity-75'
+                            : 'bg-zinc-950/50 border-zinc-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="text-2xl p-1.5 rounded-lg bg-black/60 border border-zinc-800 flex-shrink-0">
+                            {m.player2.avatar}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-xs sm:text-sm text-white truncate">
+                                {m.player2.name}
+                              </span>
+                              {m.player2.isBot && (
+                                <span className="text-[9px] px-1 rounded bg-zinc-800 text-zinc-400 font-mono">
+                                  {m.player2.isSystemBot ? 'CLUTCH_BOT' : 'AI'}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-zinc-400 font-mono block">
+                              {m.player2.studentId}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Choice & Outcome */}
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          {renderMoveBadge(m.p2Move, p2Won)}
+                          {p2Won && (
+                            <span className="text-[10px] font-bold text-green-400 flex items-center gap-0.5">
+                              <Crown className="w-3 h-3 text-green-400" />
+                              <span>WINNER (+10)</span>
+                            </span>
+                          )}
+                          {p1Won && (
+                            <span className="text-[10px] font-bold text-red-400 flex items-center gap-0.5">
+                              <Skull className="w-3 h-3 text-red-400" />
+                              <span>ELIMINATED</span>
+                            </span>
+                          )}
+                          {isDraw && (
+                            <span className="text-[10px] font-bold text-amber-400 flex items-center gap-0.5">
+                              <Zap className="w-3 h-3 text-amber-400" />
+                              <span>ADVANCED</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 9. TAB CONTENT: COMPETITORS STATUS OVERVIEW & MATRIX */}
+      {activeTab === 'MATRIX' && (
+        <div className="glass-panel rounded-2xl p-5 border border-zinc-800 space-y-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-zinc-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-blue-400" />
+                <h2 className="text-base sm:text-lg font-black font-['Orbitron',sans-serif] tracking-wider text-white">
+                  COMPETITORS STATUS OVERVIEW & MATRIX
+                </h2>
+              </div>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Live roster of all registered contenders with real-time tournament progression, scores, and casualty records.
+              </p>
+            </div>
+
+            {/* Status Filter Pills */}
+            <div className="flex flex-wrap items-center gap-1.5 bg-black/60 p-1.5 rounded-xl border border-zinc-800 text-xs">
+              <button
+                type="button"
+                onClick={() => setFilterStatus('ALL')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  filterStatus === 'ALL'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                All ({players.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStatus('ACTIVE')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  filterStatus === 'ACTIVE'
+                    ? 'bg-green-600 text-white'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                Active ({activeCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStatus('FINALIST')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  filterStatus === 'FINALIST'
+                    ? 'bg-yellow-600 text-white'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                Finalists ({finalists.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStatus('SPECTATOR')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  filterStatus === 'SPECTATOR'
+                    ? 'bg-red-600 text-white'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                Eliminated ({spectatorCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterStatus('HUMAN')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  filterStatus === 'HUMAN'
+                    ? 'bg-orange-600 text-white'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                Humans ({players.filter((p) => !p.isBot).length})
+              </button>
+            </div>
+          </div>
+
+          {/* Competitors Overview Table */}
+          <div className="overflow-x-auto rounded-xl border border-zinc-800/80 bg-black/40">
             <table className="w-full text-left text-xs">
               <thead className="bg-zinc-900/90 text-zinc-400 uppercase font-bold text-[10px] sticky top-0">
                 <tr>
                   <th className="p-3">Contender</th>
                   <th className="p-3">Student ID</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Streak</th>
-                  <th className="p-3 text-right">Overrides</th>
+                  <th className="p-3">Current Status</th>
+                  <th className="p-3">Score & Streak</th>
+                  <th className="p-3">Progression / Casualty Details</th>
+                  <th className="p-3 text-right">Admin Overrides</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/80">
                 {filteredPlayers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-zinc-500">
-                      No contenders match the filter criteria.
+                    <td colSpan={6} className="py-12 text-center text-zinc-500">
+                      No contenders match the current filter or search criteria.
                     </td>
                   </tr>
                 ) : (
-                  filteredPlayers.map((p) => (
-                    <tr key={p.id} className="hover:bg-zinc-900/50">
-                      <td className="p-3 flex items-center gap-2">
-                        <span className="text-base">{p.avatar}</span>
-                        <span className="font-bold text-zinc-200">{p.name}</span>
-                        {p.isBot && <span className="text-[9px] px-1 rounded bg-zinc-800 text-zinc-400">AI</span>}
-                      </td>
-                      <td className="p-3 font-mono text-zinc-400">{p.studentId}</td>
-                      <td className="p-3">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            p.status === 'active'
-                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                          }`}
-                        >
-                          {p.status === 'active' ? 'ALIVE' : 'ELIMINATED'}
-                        </span>
-                      </td>
-                      <td className="p-3 font-mono text-orange-400 font-bold">{p.roundStreak || 0}W</td>
-                      <td className="p-3 text-right space-x-2">
-                        {p.status !== 'active' && (
+                  filteredPlayers.map((p) => {
+                    const isChamp = champion?.id === p.id;
+                    const isFin = finalists.some((f) => f.id === p.id) || p.acceptedFinale;
+                    const isActive = p.status === 'active';
+                    const isElim = p.status === 'spectator';
+
+                    return (
+                      <tr key={p.id} className="hover:bg-zinc-900/50 transition">
+                        <td className="p-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-xl p-1 rounded-lg bg-black/60 border border-zinc-800">
+                              {p.avatar}
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-white text-xs sm:text-sm">
+                                  {p.name}
+                                </span>
+                                {isChamp && <Crown className="w-3.5 h-3.5 text-yellow-400" />}
+                              </div>
+                              <span className="text-[10px] text-zinc-500 font-mono block">
+                                Joined {formatTime(p.registeredAt)}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3 font-mono text-zinc-300">
+                          {p.studentId}
+                          {p.isBot && (
+                            <span className="ml-1 text-[9px] px-1 rounded bg-zinc-800 text-zinc-400">
+                              AI BOT
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          {isChamp ? (
+                            <span className="px-2.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 text-[10px] font-black font-mono uppercase flex items-center gap-1 w-max shadow-[0_0_12px_rgba(234,179,8,0.3)]">
+                              <Crown className="w-3 h-3 text-yellow-400" />
+                              CHAMPION
+                            </span>
+                          ) : isFin ? (
+                            <span className="px-2.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 text-[10px] font-bold font-mono uppercase flex items-center gap-1 w-max">
+                              <Sparkles className="w-3 h-3 text-yellow-400" />
+                              GRAND FINALIST
+                            </span>
+                          ) : isActive ? (
+                            <span className="px-2.5 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30 text-[10px] font-bold font-mono uppercase flex items-center gap-1 w-max">
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                              ACTIVE CONTENDER
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] font-bold font-mono uppercase flex items-center gap-1 w-max">
+                              <Skull className="w-3 h-3 text-red-400" />
+                              ELIMINATED
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <div className="font-mono text-xs">
+                            <span className="text-white font-bold">{p.score || 0} pts</span>
+                            <span className="text-zinc-500 ml-1.5 font-normal">
+                              ({p.roundStreak || 0} streak)
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          {isElim ? (
+                            <div className="text-[11px] text-zinc-300">
+                              <span className="text-red-400 font-semibold">
+                                Eliminated in Round {p.eliminatedRound || p.eliminationDetails?.round || '1'}
+                              </span>
+                              {p.eliminatedBy && (
+                                <span className="text-zinc-400 block text-[10px]">
+                                  by {p.eliminatedBy}
+                                  {p.eliminationDetails?.loserMove && p.eliminationDetails?.winnerMove && (
+                                    <span className="text-zinc-500 font-mono ml-1">
+                                      ({p.eliminationDetails.loserMove} vs {p.eliminationDetails.winnerMove})
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          ) : isFin ? (
+                            <div className="text-[11px] text-yellow-400 font-medium">
+                              Stage summons: {p.acceptedFinale ? '✅ Call Accepted' : '⏳ Waiting on stage'}
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-zinc-400">
+                              Advancing into tournament bracket
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3 text-right space-x-2">
+                          {isElim && (
+                            <button
+                              type="button"
+                              onClick={() => onForceAdvance(p.id)}
+                              className="px-2.5 py-1 rounded bg-green-950/60 hover:bg-green-800/60 border border-green-500/40 text-green-300 font-bold text-[10px] cursor-pointer transition"
+                            >
+                              Revive
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => onForceAdvance(p.id)}
-                            className="px-2.5 py-1 rounded bg-green-950/60 hover:bg-green-800/60 border border-green-500/40 text-green-300 font-bold text-[10px] cursor-pointer"
+                            onClick={() => onKickPlayer(p.id)}
+                            className="px-2.5 py-1 rounded bg-red-950/60 hover:bg-red-800/60 border border-red-500/40 text-red-300 font-bold text-[10px] cursor-pointer transition"
                           >
-                            Revive
+                            Kick
                           </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => onKickPlayer(p.id)}
-                          className="px-2.5 py-1 rounded bg-red-950/60 hover:bg-red-800/60 border border-red-500/40 text-red-300 font-bold text-[10px] cursor-pointer"
-                        >
-                          Kick
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
