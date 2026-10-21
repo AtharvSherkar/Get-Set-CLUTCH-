@@ -1,6 +1,0 @@
-name = "get-set-clutch"
-compatibility_date = "2024-11-01"
-pages_build_output_dir = "dist"
-
-[vars]
-VITE_SERVER_URL = ""
