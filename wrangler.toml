@@ -1,14 +1,6 @@
-name = "clutch-battle-royale"
+name = "get-set-clutch"
 compatibility_date = "2024-11-01"
 pages_build_output_dir = "client/dist"
 
-# Build configuration for Cloudflare Pages
-[build]
-command = "npm run build --prefix client"
-watch_dir = "client"
-
-# Production environment variables passed at build/runtime
 [vars]
-# Set this to your deployed real-time WebSockets backend (e.g. Render, Railway, Fly.io)
-# Example: VITE_SERVER_URL = "https://clutch-backend.onrender.com"
 VITE_SERVER_URL = ""
