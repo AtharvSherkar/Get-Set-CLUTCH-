@@ -162,6 +162,10 @@ io.on('connection', (socket) => {
     tournament.triggerFinaleStage();
   });
 
+  socket.on('admin_declare_champion', ({ championId }) => {
+    tournament.declareChampion(championId);
+  });
+
   socket.on('admin_reset_tournament', () => {
     tournament.resetTournament();
   });

@@ -131,6 +131,7 @@ export default function App() {
   const handleKickPlayer = (socketId) => socket?.emit('admin_kick_player', { socketId });
   const handleForceAdvance = (socketId) => socket?.emit('admin_force_advance', { socketId });
   const handleTriggerFinale = () => socket?.emit('admin_trigger_finale');
+  const handleDeclareChampion = (championId) => socket?.emit('admin_declare_champion', { championId });
   const handleResetTournament = () => socket?.emit('admin_reset_tournament');
   const handleToggleAutoAdvance = () => socket?.emit('admin_toggle_auto_advance');
 
@@ -173,6 +174,7 @@ export default function App() {
             onKickPlayer={handleKickPlayer}
             onForceAdvance={handleForceAdvance}
             onTriggerFinale={handleTriggerFinale}
+            onDeclareChampion={handleDeclareChampion}
             onResetTournament={handleResetTournament}
             onToggleAutoAdvance={handleToggleAutoAdvance}
           />

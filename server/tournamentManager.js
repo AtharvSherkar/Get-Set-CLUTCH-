@@ -39,6 +39,8 @@ export class TournamentManager {
     this.beatTimeRemaining = 0;
     this.isPaused = false;
     this.finalists = [];
+    this.eliminations = [];
+    this.champion = null;
     this.spectatorReactions = [];
     this.autoAdvance = false;
     this.roundHistory = [];
@@ -77,7 +79,12 @@ export class TournamentManager {
       roundStreak: 0,
       currentMatchId: null,
       disconnectedAt: null,
-      acceptedFinale: false
+      acceptedFinale: false,
+      registeredAt: Date.now(),
+      eliminatedRound: null,
+      eliminatedBy: null,
+      eliminatedAt: null,
+      eliminationDetails: null
     };
 
     this.players.set(socketId, player);
@@ -167,6 +174,9 @@ export class TournamentManager {
     const p = this.players.get(socketId);
     if (p) {
       this.players.delete(socketId);
+      this.eliminations = this.eliminations.filter(e => e.playerId !== socketId);
+      this.finalists = this.finalists.filter(f => f.id !== socketId);
+      if (this.champion && this.champion.id === socketId) this.champion = null;
       this.broadcastState();
       return true;
     }
@@ -177,10 +187,32 @@ export class TournamentManager {
     const p = this.players.get(socketId);
     if (p) {
       p.status = 'active';
+      p.eliminatedRound = null;
+      p.eliminatedBy = null;
+      p.eliminatedAt = null;
+      p.eliminationDetails = null;
+      this.eliminations = this.eliminations.filter(e => e.playerId !== socketId);
       this.broadcastState();
       return true;
     }
     return false;
+  }
+
+  declareChampion(championId) {
+    const winner = this.players.get(championId);
+    if (!winner) return false;
+    this.champion = winner;
+    this.io.emit('champion_crowned', {
+      champion: {
+        id: winner.id,
+        name: winner.name,
+        studentId: winner.studentId,
+        avatar: winner.avatar,
+        score: winner.score
+      }
+    });
+    this.broadcastState();
+    return true;
   }
 
   checkFinaleCondition() {
@@ -419,6 +451,31 @@ export class TournamentManager {
           if (p2) {
             p2.status = 'spectator'; // ELIMINATED!
             p2.roundStreak = 0;
+            p2.eliminatedRound = this.round;
+            p2.eliminatedBy = p1?.name || match.player1.name;
+            p2.eliminatedAt = Date.now();
+            p2.eliminationDetails = {
+              round: this.round,
+              defeatedBy: p1?.name || match.player1.name,
+              defeatedByAvatar: p1?.avatar || match.player1.avatar,
+              loserMove: m2,
+              winnerMove: m1,
+              timestamp: Date.now()
+            };
+            this.eliminations.unshift({
+              id: `elim_${p2.id}_${this.round}`,
+              playerId: p2.id,
+              name: p2.name,
+              studentId: p2.studentId,
+              avatar: p2.avatar,
+              isBot: Boolean(p2.isBot),
+              round: this.round,
+              defeatedBy: p1?.name || match.player1.name,
+              defeatedByAvatar: p1?.avatar || match.player1.avatar,
+              loserMove: m2,
+              winnerMove: m1,
+              timestamp: Date.now()
+            });
           }
         } else {
           match.result = 'P2_WIN';
@@ -434,6 +491,31 @@ export class TournamentManager {
           if (p1) {
             p1.status = 'spectator'; // ELIMINATED!
             p1.roundStreak = 0;
+            p1.eliminatedRound = this.round;
+            p1.eliminatedBy = p2?.name || match.player2.name;
+            p1.eliminatedAt = Date.now();
+            p1.eliminationDetails = {
+              round: this.round,
+              defeatedBy: p2?.name || match.player2.name,
+              defeatedByAvatar: p2?.avatar || match.player2.avatar,
+              loserMove: m1,
+              winnerMove: m2,
+              timestamp: Date.now()
+            };
+            this.eliminations.unshift({
+              id: `elim_${p1.id}_${this.round}`,
+              playerId: p1.id,
+              name: p1.name,
+              studentId: p1.studentId,
+              avatar: p1.avatar,
+              isBot: Boolean(p1.isBot),
+              round: this.round,
+              defeatedBy: p2?.name || match.player2.name,
+              defeatedByAvatar: p2?.avatar || match.player2.avatar,
+              loserMove: m1,
+              winnerMove: m2,
+              timestamp: Date.now()
+            });
           }
         }
       }
@@ -502,6 +584,8 @@ export class TournamentManager {
     this.currentBeat = CountdownBeats.READY;
     this.matches = [];
     this.finalists = [];
+    this.eliminations = [];
+    this.champion = null;
     this.isPaused = false;
     this.roundHistory = [];
 
@@ -512,6 +596,10 @@ export class TournamentManager {
       player.roundStreak = 0;
       player.currentMatchId = null;
       player.acceptedFinale = false;
+      player.eliminatedRound = null;
+      player.eliminatedBy = null;
+      player.eliminatedAt = null;
+      player.eliminationDetails = null;
     }
 
     this.broadcastState();
@@ -533,6 +621,39 @@ export class TournamentManager {
     const activeContenders = this.getActiveContenders();
     const spectators = this.getSpectators();
 
+    // Determine the Last 2 Players:
+    // If finalists array has 2 players, or activeContenders has exactly 2 players:
+    const lastTwoSource = this.finalists.length === 2
+      ? this.finalists
+      : (activeContenders.length === 2 ? activeContenders : []);
+
+    const lastTwoPlayers = lastTwoSource.map(f => {
+      const p = this.players.get(f.id) || f;
+      return {
+        id: p.id,
+        name: p.name,
+        studentId: p.studentId,
+        avatar: p.avatar,
+        score: p.score || 0,
+        roundStreak: p.roundStreak || 0,
+        isBot: Boolean(p.isBot),
+        status: p.status,
+        acceptedFinale: Boolean(p.acceptedFinale)
+      };
+    });
+
+    // Waiting list: all active contenders waiting in the lobby (during REGISTRATION or between rounds)
+    const waitingPlayers = activeContenders.map(p => ({
+      id: p.id,
+      name: p.name,
+      studentId: p.studentId,
+      avatar: p.avatar,
+      isBot: Boolean(p.isBot),
+      score: p.score || 0,
+      roundStreak: p.roundStreak || 0,
+      registeredAt: p.registeredAt || Date.now()
+    }));
+
     return {
       status: this.status,
       round: this.round,
@@ -540,10 +661,21 @@ export class TournamentManager {
       isPaused: this.isPaused,
       autoAdvance: this.autoAdvance,
       serverLanIp: this.serverLanIp,
+      champion: this.champion ? {
+        id: this.champion.id,
+        name: this.champion.name,
+        studentId: this.champion.studentId,
+        avatar: this.champion.avatar,
+        score: this.champion.score || 0
+      } : null,
       stats: {
         totalPlayers: this.players.size,
         activeCount: activeContenders.length,
-        spectatorCount: spectators.length
+        spectatorCount: spectators.length,
+        eliminatedCount: this.eliminations.length,
+        waitingCount: waitingPlayers.length,
+        humanCount: this.getAllPlayers().filter(p => !p.isBot).length,
+        botCount: this.getAllPlayers().filter(p => p.isBot).length
       },
       matches: this.matches.map(m => ({
         id: m.id,
@@ -561,18 +693,28 @@ export class TournamentManager {
         name: f.name,
         studentId: f.studentId,
         avatar: f.avatar,
-        acceptedFinale: f.acceptedFinale
+        score: f.score || 0,
+        roundStreak: f.roundStreak || 0,
+        acceptedFinale: Boolean(f.acceptedFinale)
       })),
+      lastTwoPlayers,
+      waitingPlayers,
+      eliminations: this.eliminations,
       players: this.getAllPlayers().map(p => ({
         id: p.id,
         name: p.name,
         studentId: p.studentId,
         avatar: p.avatar,
         status: p.status,
-        isBot: p.isBot,
-        score: p.score,
-        roundStreak: p.roundStreak,
-        currentMatchId: p.currentMatchId
+        isBot: Boolean(p.isBot),
+        score: p.score || 0,
+        roundStreak: p.roundStreak || 0,
+        currentMatchId: p.currentMatchId,
+        registeredAt: p.registeredAt,
+        eliminatedRound: p.eliminatedRound,
+        eliminatedBy: p.eliminatedBy,
+        eliminatedAt: p.eliminatedAt,
+        eliminationDetails: p.eliminationDetails
       }))
     };
   }

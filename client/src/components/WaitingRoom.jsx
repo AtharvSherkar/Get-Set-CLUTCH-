@@ -181,12 +181,40 @@ export default function WaitingRoom({
           </div>
 
           {matches.length === 0 ? (
-            <div className="py-12 text-center space-y-2">
-              <p className="text-sm font-semibold text-zinc-400">
+            <div className="py-6 text-center space-y-4">
+              <p className="text-sm font-semibold text-zinc-300">
                 {status === 'REGISTRATION'
                   ? 'Contenders are assembling in the waiting room. Round 1 matchmaking starting shortly!'
                   : 'Preparing pairing for the next round...'}
               </p>
+
+              {/* Live list of contenders waiting in lobby */}
+              {tournamentState?.waitingPlayers?.length > 0 && (
+                <div className="space-y-2 text-left pt-2 border-t border-zinc-800/80">
+                  <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-orange-400" />
+                    <span>Contenders in Lobby ({tournamentState.waitingPlayers.length})</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
+                    {tournamentState.waitingPlayers.map((wp) => (
+                      <div
+                        key={wp.id}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs border transition ${
+                          wp.id === currentPlayer?.id
+                            ? 'bg-orange-500/20 border-orange-500/60 text-white font-bold'
+                            : 'bg-zinc-900/80 border-zinc-800 text-zinc-300'
+                        }`}
+                      >
+                        <span>{wp.avatar}</span>
+                        <span>{wp.name}</span>
+                        {wp.id === currentPlayer?.id && (
+                          <span className="text-[9px] px-1 rounded bg-[#FF5500] text-white font-black">YOU</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
