@@ -3,10 +3,14 @@
   "version": "1.0.0",
   "description": "CLUTCH - Real-Time Battle Royale Rock-Paper-Scissors Tournament Platform",
   "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "server": "node server/index.js",
     "client": "npm run dev --prefix client",
-    "build": "npm run build --prefix client",
+    "build": "npm install --prefix client && npm run build --prefix client",
     "dev": "node dev-runner.js",
     "start": "node server/index.js"
   },
