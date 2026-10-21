@@ -352,13 +352,17 @@ export class TournamentManager {
 
   beginCountdown() {
     this.status = TournamentStatus.COUNTDOWN;
+    // Synchronized 4-beat "Rock, Paper, Scissor, Clutch!" sequence
+    // Total duration: ~2.8 to 3.0 seconds (700+700+700+900 = 3000ms)
     const beats = [
-      { beat: CountdownBeats.ROCK, duration: 1200 },
-      { beat: CountdownBeats.PAPER, duration: 1200 },
-      { beat: CountdownBeats.SCISSOR, duration: 1200 },
-      { beat: CountdownBeats.CLUTCH, duration: 1600 }
+      { beat: CountdownBeats.ROCK, duration: 700 },
+      { beat: CountdownBeats.PAPER, duration: 700 },
+      { beat: CountdownBeats.SCISSOR, duration: 700 },
+      { beat: CountdownBeats.CLUTCH, duration: 900 }
     ];
 
+    // Shared round start timestamp for client-side sync
+    const roundStartTimestamp = Date.now();
     let currentStep = 0;
 
     const executeStep = () => {
@@ -368,18 +372,21 @@ export class TournamentManager {
         const { beat, duration } = beats[currentStep];
         this.currentBeat = beat;
 
-        // Broadcast beat event for audio/visual sync
+        // Broadcast beat event for audio/visual sync with shared timestamp
         this.io.emit('countdown_beat', {
           beat,
           round: this.round,
           step: currentStep + 1,
           totalSteps: beats.length,
-          duration
+          duration,
+          roundStartTimestamp,
+          isSelectionLocked: beat === CountdownBeats.CLUTCH
         });
 
         // If it's the CLUTCH beat, bot selections and locks execute!
         if (beat === CountdownBeats.CLUTCH) {
           this.executeBotMovesAndLocks();
+          this.broadcastState();
         }
 
         currentStep++;
@@ -746,8 +753,8 @@ export class TournamentManager {
         player2: m.player2,
         status: m.status,
         result: m.result,
-        p1Move: this.status === TournamentStatus.EVALUATING || this.status === TournamentStatus.ROUND_COMPLETE ? m.p1Move : (m.p1Move ? 'LOCKED' : null),
-        p2Move: this.status === TournamentStatus.EVALUATING || this.status === TournamentStatus.ROUND_COMPLETE ? m.p2Move : (m.p2Move ? 'LOCKED' : null),
+        p1Move: this.status === TournamentStatus.EVALUATING || this.status === TournamentStatus.ROUND_COMPLETE || (this.status === TournamentStatus.COUNTDOWN && this.currentBeat === CountdownBeats.CLUTCH) ? m.p1Move : (m.p1Move ? 'LOCKED' : null),
+        p2Move: this.status === TournamentStatus.EVALUATING || this.status === TournamentStatus.ROUND_COMPLETE || (this.status === TournamentStatus.COUNTDOWN && this.currentBeat === CountdownBeats.CLUTCH) ? m.p2Move : (m.p2Move ? 'LOCKED' : null),
         winnerId: m.winnerId,
         loserId: m.loserId
       })),

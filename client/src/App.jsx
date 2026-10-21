@@ -203,6 +203,7 @@ export default function App() {
                 currentMatch &&
                 (status === 'MATCHMAKING' ||
                   status === 'COUNTDOWN' ||
+                  status === 'LOCKED' ||
                   status === 'EVALUATING') ? (
                   <DuelArena
                     currentMatch={currentMatch}
