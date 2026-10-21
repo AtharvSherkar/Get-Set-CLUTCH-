@@ -76,29 +76,36 @@ export default function KahootQrBanner({
               </div>
             </div>
 
-            {/* Joined Contenders Ticker */}
-            <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-2">
-              <div className="flex items-center gap-1.5 text-xs text-green-400 font-bold bg-green-500/10 px-3 py-1 rounded-full border border-green-500/30">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
-                <Users className="w-3.5 h-3.5" />
-                <span>{activeCount} Contenders Joined & Waiting in Lobby</span>
-              </div>
-            </div>
+            {/* Joined Contenders Ticker (Real Players only) */}
+            {(() => {
+              const humanPlayers = players.filter((p) => !p.isBot);
+              return (
+                <>
+                  <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-2">
+                    <div className="flex items-center gap-1.5 text-xs text-green-400 font-bold bg-green-500/10 px-3 py-1 rounded-full border border-green-500/30">
+                      <span className="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
+                      <Users className="w-3.5 h-3.5" />
+                      <span>{humanPlayers.length} Players Joined & Waiting in Lobby</span>
+                    </div>
+                  </div>
 
-            {/* Recently Joined Preview Badges */}
-            {players.length > 0 && (
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-1.5 pt-1">
-                {players.slice(-6).map((p) => (
-                  <span
-                    key={p.id}
-                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-black/60 border border-zinc-800 text-[11px] font-bold text-zinc-200"
-                  >
-                    <span>{p.avatar}</span>
-                    <span className="truncate max-w-[100px]">{p.name}</span>
-                  </span>
-                ))}
-              </div>
-            )}
+                  {/* Recently Joined Preview Badges */}
+                  {humanPlayers.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-center lg:justify-start gap-1.5 pt-1">
+                      {humanPlayers.slice(-8).map((p) => (
+                        <span
+                          key={p.id}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-black/60 border border-zinc-800 text-[11px] font-bold text-zinc-200"
+                        >
+                          <span>{p.avatar}</span>
+                          <span className="truncate max-w-[100px]">{p.name}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           {/* RIGHT: HIGH-CONTRAST QR CODE CARD */}

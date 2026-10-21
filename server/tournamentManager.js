@@ -643,16 +643,19 @@ export class TournamentManager {
     });
 
     // Waiting list: all active contenders waiting in the lobby (during REGISTRATION or between rounds)
-    const waitingPlayers = activeContenders.map(p => ({
-      id: p.id,
-      name: p.name,
-      studentId: p.studentId,
-      avatar: p.avatar,
-      isBot: Boolean(p.isBot),
-      score: p.score || 0,
-      roundStreak: p.roundStreak || 0,
-      registeredAt: p.registeredAt || Date.now()
-    }));
+    // Strictly actual human players (do NOT show bots in lobby)
+    const waitingPlayers = activeContenders
+      .filter(p => !p.isBot)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        studentId: p.studentId,
+        avatar: p.avatar,
+        isBot: false,
+        score: p.score || 0,
+        roundStreak: p.roundStreak || 0,
+        registeredAt: p.registeredAt || Date.now()
+      }));
 
     return {
       status: this.status,

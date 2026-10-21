@@ -42,9 +42,9 @@ export default function AdminPanel({
   const players = tournamentState?.players || [];
   const currentBeat = tournamentState?.currentBeat || 'READY';
 
-  // Live synced lists
+  // Live synced lists (bots strictly excluded from waiting lobby)
   const lastTwoPlayers = tournamentState?.lastTwoPlayers || [];
-  const waitingPlayers = tournamentState?.waitingPlayers || [];
+  const waitingPlayers = (tournamentState?.waitingPlayers || []).filter((p) => !p.isBot);
   const eliminations = tournamentState?.eliminations || [];
   const champion = tournamentState?.champion || null;
 
@@ -78,10 +78,11 @@ export default function AdminPanel({
     return true;
   });
 
-  // Filtered waiting list
+  // Filtered waiting list (strictly real human players, zero bots)
   const filteredWaiting = waitingPlayers.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.studentId.toLowerCase().includes(searchQuery.toLowerCase())
+    !p.isBot &&
+    (p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+     p.studentId.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   // Filtered eliminations list
@@ -132,7 +133,7 @@ export default function AdminPanel({
           </div>
           <div className="h-6 w-px bg-zinc-800"></div>
           <div className="text-center">
-            <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">WAITING</span>
+            <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">PLAYERS IN LOBBY</span>
             <span className="text-sm sm:text-base font-black text-amber-400 font-mono">
               {waitingPlayers.length}
             </span>
@@ -536,17 +537,17 @@ export default function AdminPanel({
             <div>
               <h2 className="text-sm sm:text-base font-bold font-['Space_Grotesk',sans-serif] text-white flex items-center gap-2">
                 <Clock className="w-4 h-4 text-amber-400" />
-                <span>LIVE WAITING ROOM ROSTER ({filteredWaiting.length} CONTENDERS)</span>
+                <span>LIVE WAITING ROOM ROSTER ({filteredWaiting.length} PLAYERS)</span>
               </h2>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Contenders currently registered and standing by in the waiting lobby for the next round pairing.
+                Real human contenders currently registered and standing by in the waiting lobby (AI bots hidden).
               </p>
             </div>
           </div>
 
           {filteredWaiting.length === 0 ? (
             <div className="py-12 text-center text-xs text-zinc-500 font-medium">
-              No contenders currently in the waiting list. Players who join will appear here in real-time!
+              No real players currently in the waiting list. Players who scan the QR code and join will appear here in real-time!
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -562,9 +563,6 @@ export default function AdminPanel({
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-xs text-white">{p.name}</span>
-                        {p.isBot && (
-                          <span className="text-[9px] px-1 rounded bg-zinc-800 text-zinc-400 font-mono">AI</span>
-                        )}
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono mt-0.5">
                         <span>{p.studentId}</span>
