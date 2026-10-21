@@ -26,6 +26,14 @@ const BOT_USERNAMES = [
   'PulseSurge', 'ZeroGravity', 'FrostBite', 'TitanRox', 'IronClaw', 'OmegaV'
 ];
 
+const getLosingMoveAgainst = (move) => {
+  const normalized = (move || 'rock').toLowerCase();
+  if (normalized === 'rock') return 'scissors';
+  if (normalized === 'paper') return 'rock';
+  if (normalized === 'scissors') return 'paper';
+  return 'scissors';
+};
+
 export class TournamentManager {
   constructor(io, options = {}) {
     this.io = io;
@@ -306,8 +314,8 @@ export class TournamentManager {
       this.matches.push({
         id: matchId,
         round: this.round,
-        player1: { id: p1.id, name: p1.name, avatar: p1.avatar, studentId: p1.studentId, isBot: p1.isBot },
-        player2: { id: p2.id, name: p2.name, avatar: p2.avatar, studentId: p2.studentId, isBot: p2.isBot },
+        player1: { id: p1.id, name: p1.name, avatar: p1.avatar, studentId: p1.studentId, isBot: p1.isBot, isSystemBot: Boolean(p1.isSystemBot) },
+        player2: { id: p2.id, name: p2.name, avatar: p2.avatar, studentId: p2.studentId, isBot: p2.isBot, isSystemBot: Boolean(p2.isSystemBot) },
         p1Move: null,
         p2Move: null,
         status: 'IN_PROGRESS',
@@ -388,20 +396,31 @@ export class TournamentManager {
   executeBotMovesAndLocks() {
     const choices = ['rock', 'paper', 'scissors'];
     for (const match of this.matches) {
-      // Bot 1
-      if (match.player1.isBot && !match.p1Move) {
-        match.p1Move = choices[Math.floor(Math.random() * choices.length)];
-      }
-      // Bot 2
-      if (match.player2.isBot && !match.p2Move) {
-        match.p2Move = choices[Math.floor(Math.random() * choices.length)];
-      }
+      const isP1SystemBot = match.player1.isSystemBot || match.player1.id.startsWith('clutch_bot_');
+      const isP2SystemBot = match.player2.isSystemBot || match.player2.id.startsWith('clutch_bot_');
+
       // Human timeout fallback: if human didn't select, default random so game isn't stalled
-      if (!match.p1Move) {
+      if (!isP1SystemBot && !match.p1Move) {
         match.p1Move = choices[Math.floor(Math.random() * choices.length)];
       }
-      if (!match.p2Move) {
+      if (!isP2SystemBot && !match.p2Move) {
         match.p2Move = choices[Math.floor(Math.random() * choices.length)];
+      }
+
+      // If matched with CLUTCH_BOT (system bot for odd player edge case):
+      // The system bot MUST deliberately pick the losing move so the human player ALWAYS advances!
+      if (isP2SystemBot) {
+        match.p2Move = getLosingMoveAgainst(match.p1Move);
+      } else if (isP1SystemBot) {
+        match.p1Move = getLosingMoveAgainst(match.p2Move);
+      } else {
+        // Standard AI bots:
+        if (match.player1.isBot && !match.p1Move) {
+          match.p1Move = choices[Math.floor(Math.random() * choices.length)];
+        }
+        if (match.player2.isBot && !match.p2Move) {
+          match.p2Move = choices[Math.floor(Math.random() * choices.length)];
+        }
       }
     }
   }
@@ -412,6 +431,36 @@ export class TournamentManager {
     for (const match of this.matches) {
       const p1 = this.players.get(match.player1.id);
       const p2 = this.players.get(match.player2.id);
+
+      const isP1SystemBot = match.player1.isSystemBot || match.player1.id.startsWith('clutch_bot_');
+      const isP2SystemBot = match.player2.isSystemBot || match.player2.id.startsWith('clutch_bot_');
+
+      // System bot (CLUTCH_BOT) is a sparring partner for odd players and NEVER eliminates a human!
+      if (isP2SystemBot) {
+        // Player 1 (human) always beats system bot and advances!
+        match.result = 'P1_WIN';
+        match.winnerId = match.player1.id;
+        match.loserId = match.player2.id;
+        match.status = 'COMPLETED';
+        if (p1) {
+          p1.status = 'active';
+          p1.score += 10;
+          p1.roundStreak += 1;
+        }
+        continue;
+      } else if (isP1SystemBot) {
+        // Player 2 (human) always beats system bot and advances!
+        match.result = 'P2_WIN';
+        match.winnerId = match.player2.id;
+        match.loserId = match.player1.id;
+        match.status = 'COMPLETED';
+        if (p2) {
+          p2.status = 'active';
+          p2.score += 10;
+          p2.roundStreak += 1;
+        }
+        continue;
+      }
 
       const m1 = match.p1Move;
       const m2 = match.p2Move;
@@ -540,8 +589,19 @@ export class TournamentManager {
   finalizeRound() {
     this.status = TournamentStatus.ROUND_COMPLETE;
 
-    // Check if only 2 players remain!
-    const activeContenders = this.getActiveContenders();
+    // Check how many active contenders remain!
+    let activeContenders = this.getActiveContenders();
+
+    // Critical Safeguard: If down to 1 player, restore the top runner-up so the tournament ALWAYS has 2 finalists!
+    if (activeContenders.length === 1 && this.eliminations.length > 0) {
+      const lastElim = this.eliminations[0];
+      const runnerUp = this.players.get(lastElim.playerId);
+      if (runnerUp) {
+        runnerUp.status = 'active';
+        this.eliminations = this.eliminations.filter(e => e.playerId !== runnerUp.id);
+        activeContenders = this.getActiveContenders();
+      }
+    }
 
     if (activeContenders.length === 2) {
       // Strictly 2 finalists! Trigger the "Call from Clutch" stage transition!
