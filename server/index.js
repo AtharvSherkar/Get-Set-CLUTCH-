@@ -88,14 +88,42 @@ io.on('connection', (socket) => {
   // Send current state upon connecting
   socket.emit('tournament_state', tournament.getPublicState());
 
+  // Socket Role Registration
+  const ensureAdmin = (sock) => {
+    sock.data = sock.data || {};
+    sock.data.role = 'admin';
+    sock.join('admins');
+    tournament.registerAdmin(sock.id);
+  };
+
+  socket.on('register_admin', () => {
+    ensureAdmin(socket);
+  });
+
+  socket.on('register_role', ({ role } = {}) => {
+    socket.data = socket.data || {};
+    if (role === 'admin') {
+      ensureAdmin(socket);
+    } else {
+      socket.data.role = 'player';
+      socket.join('players');
+    }
+  });
+
   // Player Registration
   socket.on('register_player', (data) => {
+    socket.data = socket.data || {};
+    socket.data.role = 'player';
+    socket.join('players');
     const player = tournament.registerPlayer(socket.id, data || {});
     socket.emit('registered_success', player);
   });
 
   // Reconnect Handling
   socket.on('reconnect_player', ({ oldSocketId, name }) => {
+    socket.data = socket.data || {};
+    socket.data.role = 'player';
+    socket.join('players');
     const player = tournament.handleReconnect(oldSocketId, socket.id, name);
     if (player) {
       socket.emit('registered_success', player);
@@ -131,6 +159,7 @@ io.on('connection', (socket) => {
 
   // Admin Controls
   socket.on('admin_start_round', () => {
+    ensureAdmin(socket);
     const result = tournament.startRound();
     if (result?.error) {
       socket.emit('admin_error', { message: result.error });
@@ -138,49 +167,70 @@ io.on('connection', (socket) => {
   });
 
   socket.on('admin_toggle_pause', () => {
+    ensureAdmin(socket);
     const isPaused = tournament.togglePause();
     socket.emit('admin_notice', { message: isPaused ? 'Tournament paused' : 'Tournament resumed' });
   });
 
-  socket.on('admin_add_bots', ({ count = 8 }) => {
+  socket.on('admin_add_bots', ({ count = 8 } = {}) => {
+    ensureAdmin(socket);
     tournament.addTestBots(count);
   });
 
   socket.on('admin_clear_bots', () => {
+    ensureAdmin(socket);
     tournament.clearBots();
   });
 
   socket.on('admin_kick_player', ({ socketId }) => {
+    ensureAdmin(socket);
     tournament.kickPlayer(socketId);
   });
 
-  socket.on('admin_kick_all', () => {
-    tournament.kickAllPlayers();
+  socket.on('kick-player', ({ socketId }) => {
+    ensureAdmin(socket);
+    tournament.kickPlayer(socketId);
   });
 
+  const handleKickAll = (data) => {
+    ensureAdmin(socket);
+    const reason = data?.reason || 'The room was cleared by the host.';
+    tournament.kickAllPlayers(reason);
+  };
+
+  socket.on('admin_kick_all', handleKickAll);
+  socket.on('kick-all', handleKickAll);
+  socket.on('clear-all-players', handleKickAll);
+
   socket.on('admin_force_advance', ({ socketId }) => {
+    ensureAdmin(socket);
     tournament.forceAdvance(socketId);
   });
 
   socket.on('admin_trigger_finale', () => {
+    ensureAdmin(socket);
     tournament.triggerFinaleStage();
   });
 
   socket.on('admin_declare_champion', ({ championId }) => {
+    ensureAdmin(socket);
     tournament.declareChampion(championId);
   });
 
   socket.on('admin_reset_tournament', () => {
+    ensureAdmin(socket);
     tournament.resetTournament();
   });
 
   socket.on('admin_toggle_auto_advance', () => {
+    ensureAdmin(socket);
     tournament.autoAdvance = !tournament.autoAdvance;
     tournament.broadcastState();
   });
 
   // Disconnect
   socket.on('disconnect', () => {
+    tournament.unregisterAdmin(socket.id);
     tournament.handleDisconnect(socket.id);
   });
 });

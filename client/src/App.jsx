@@ -62,6 +62,18 @@ export default function App() {
   const [kickNotification, setKickNotification] = useState(null);
 
   const socketRef = useRef(null);
+  const activeViewRef = useRef(activeView);
+
+  useEffect(() => {
+    activeViewRef.current = activeView;
+  }, [activeView]);
+
+  const checkIsAdminSession = () => {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    return path.includes('admin') || hash.includes('admin') || activeViewRef.current === 'ADMIN';
+  };
 
   // Sync URL routing for /admin, /projector, /join, /waiting-room
   useEffect(() => {
@@ -70,10 +82,14 @@ export default function App() {
       const hash = window.location.hash.toLowerCase();
       if (path.includes('admin') || hash.includes('admin')) {
         setActiveView('ADMIN');
+        activeViewRef.current = 'ADMIN';
+        socketRef.current?.emit('register_admin');
       } else if (path.includes('projector') || hash.includes('projector')) {
         setActiveView('PROJECTOR');
+        activeViewRef.current = 'PROJECTOR';
       } else {
         setActiveView('PLAYER');
+        activeViewRef.current = 'PLAYER';
       }
     };
     handleRoute();
@@ -99,6 +115,14 @@ export default function App() {
       console.log('Connected to CLUTCH server:', s.id);
       setIsConnected(true);
       setConnectionError(null);
+
+      // Register socket role on connect
+      if (checkIsAdminSession()) {
+        s.emit('register_admin');
+      } else {
+        s.emit('register_role', { role: 'player' });
+      }
+
       const savedPlayer = sessionStorage.getItem('clutch_player');
       if (savedPlayer) {
         try {
@@ -153,25 +177,30 @@ export default function App() {
       setCheers((prev) => [...prev.slice(-30), cheer]);
     });
 
-    s.on('player_kicked', ({ reason } = {}) => {
+    // Guarded Player Kick / Reset Handler:
+    // Only standard players in /join, /waiting-room, or /game are redirected.
+    // If client is in an admin session or route (/admin), ignore completely!
+    const handlePlayerKick = ({ reason } = {}) => {
+      if (checkIsAdminSession()) {
+        console.log('[AdminGuard] Ignored player kick/reset event because client is in admin session/route');
+        return;
+      }
       sessionStorage.removeItem('clutch_player');
       setCurrentPlayer(null);
-      setKickNotification(reason || 'You were removed from the tournament by the host.');
+      setKickNotification(reason || 'The room was cleared by the host.');
       try {
         window.history.pushState(null, '', '/join');
       } catch (e) {}
       setActiveView('PLAYER');
-    });
+      activeViewRef.current = 'PLAYER';
+    };
 
-    s.on('all_players_kicked', ({ reason } = {}) => {
-      sessionStorage.removeItem('clutch_player');
-      setCurrentPlayer(null);
-      setKickNotification(reason || 'All players were removed from the tournament by the host.');
-      try {
-        window.history.pushState(null, '', '/join');
-      } catch (e) {}
-      setActiveView('PLAYER');
-    });
+    s.on('player_kicked', handlePlayerKick);
+    s.on('player-kicked', handlePlayerKick);
+    s.on('all_players_kicked', handlePlayerKick);
+    s.on('all-players-kicked', handlePlayerKick);
+    s.on('game-reset', handlePlayerKick);
+    s.on('redirect-to-join', handlePlayerKick);
 
     return () => {
       s.disconnect();
@@ -283,6 +312,10 @@ export default function App() {
         onSelectView={(view) => {
           sound.playClick();
           setActiveView(view);
+          activeViewRef.current = view;
+          if (view === 'ADMIN') {
+            socket?.emit('register_admin');
+          }
           window.location.hash = view.toLowerCase();
         }}
       />

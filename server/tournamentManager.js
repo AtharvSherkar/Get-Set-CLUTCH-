@@ -58,6 +58,30 @@ export class TournamentManager {
     this.spectatorReactions = [];
     this.autoAdvance = false;
     this.roundHistory = [];
+    this.adminSockets = new Set();
+  }
+
+  registerAdmin(socketId) {
+    if (!socketId) return;
+    this.adminSockets.add(socketId);
+    const s = this.io?.sockets?.sockets?.get(socketId);
+    if (s) {
+      s.data = s.data || {};
+      s.data.role = 'admin';
+      s.join('admins');
+    }
+  }
+
+  unregisterAdmin(socketId) {
+    if (!socketId) return;
+    this.adminSockets.delete(socketId);
+  }
+
+  isAdmin(socketId) {
+    if (!socketId) return false;
+    if (this.adminSockets.has(socketId)) return true;
+    const s = this.io?.sockets?.sockets?.get(socketId);
+    return s?.data?.role === 'admin' || s?.rooms?.has('admins');
   }
 
   // Helper to get all player objects as an array
@@ -194,6 +218,11 @@ export class TournamentManager {
   }
 
   kickPlayer(socketId, reason = 'You were removed from the tournament by the host.') {
+    // Admin sockets are strictly protected from being kicked
+    if (this.isAdmin(socketId)) {
+      return false;
+    }
+
     const p = this.players.get(socketId);
     if (p) {
       this.players.delete(socketId);
@@ -202,10 +231,8 @@ export class TournamentManager {
       if (this.champion && this.champion.id === socketId) this.champion = null;
 
       // Real-time socket event notifying the specific kicked player
-      this.io.to(socketId).emit('player_kicked', {
-        reason,
-        socketId
-      });
+      this.io.to(socketId).emit('player_kicked', { reason, socketId });
+      this.io.to(socketId).emit('player-kicked', { reason, socketId });
 
       // Update any active match involving the kicked player
       for (const m of this.matches) {
@@ -229,12 +256,45 @@ export class TournamentManager {
     return false;
   }
 
-  kickAllPlayers(reason = 'All players were removed from the tournament by the host.') {
-    // Broadcast real-time kick event to all connected sockets
-    this.io.emit('all_players_kicked', { reason });
-    this.io.emit('player_kicked', { reason });
+  kickAllPlayers(reason = 'The room was cleared by the host.') {
+    // 1. Gather all target player sockets (strictly excluding admin sockets)
+    const targetPlayerSocketIds = new Set();
 
-    // Clean up all player registrations and tournament brackets
+    // From registered tournament contenders
+    for (const [id, player] of this.players.entries()) {
+      if (!player.isBot && !this.isAdmin(id)) {
+        targetPlayerSocketIds.add(id);
+      }
+    }
+
+    // From connected sockets (players in /join, /waiting-room, /game)
+    if (this.io?.sockets?.sockets) {
+      for (const [sId, s] of this.io.sockets.sockets.entries()) {
+        if (this.isAdmin(sId) || s.data?.role === 'admin' || s.rooms?.has('admins')) {
+          continue; // STRICTLY EXCLUDE ADMIN SOCKETS
+        }
+        if (s.data?.role === 'player' || s.rooms?.has('players') || targetPlayerSocketIds.has(sId)) {
+          targetPlayerSocketIds.add(sId);
+        } else {
+          // Connected non-admin sockets are treated as players
+          targetPlayerSocketIds.add(sId);
+        }
+      }
+    }
+
+    // 2. Broadcast kick event ONLY to targeted player sockets
+    for (const sId of targetPlayerSocketIds) {
+      if (!this.isAdmin(sId)) {
+        this.io.to(sId).emit('all_players_kicked', { reason });
+        this.io.to(sId).emit('all-players-kicked', { reason });
+        this.io.to(sId).emit('player_kicked', { reason });
+        this.io.to(sId).emit('player-kicked', { reason });
+        this.io.to(sId).emit('game-reset', { reason });
+        this.io.to(sId).emit('redirect-to-join', { reason });
+      }
+    }
+
+    // 3. Clean up all player registrations and tournament brackets
     this.players.clear();
     this.eliminations = [];
     this.finalists = [];

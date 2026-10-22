@@ -25,6 +25,7 @@ const assert = (condition, message) => {
 
 admin.on('connect', () => {
   console.log('Admin socket connected:', admin.id);
+  admin.emit('register_admin');
   admin.emit('admin_clear_bots');
   admin.emit('admin_reset_tournament');
   setTimeout(() => {
@@ -143,15 +144,48 @@ admin.on('tournament_state', (state) => {
     assert(state.matches.length === 0, 'Matches cleared');
     assert(state.finalists.length === 0, 'Finalists cleared');
 
-    console.log('\n======================================================');
-    console.log('🎉 ALL 13 END-TO-END VALIDATION TESTS PASSED CLEANLY! 🎉');
-    console.log('======================================================\n');
+    // STEP 14: Test "Kick All" Admin Exemption & Targeted Player Notification
+    console.log('\n--- TEST 14: ADMIN SOCKET ROLE EXEMPTION ON KICK ALL ---');
+    let adminReceivedKick = false;
+    let p1ReceivedKick = false;
+    let kickReasonReceived = null;
 
-    p1.disconnect();
-    p2.disconnect();
-    p3.disconnect();
-    admin.disconnect();
+    admin.on('player_kicked', () => { adminReceivedKick = true; });
+    admin.on('all_players_kicked', () => { adminReceivedKick = true; });
 
-    setTimeout(() => process.exit(0), 500);
+    p1.on('all_players_kicked', ({ reason } = {}) => {
+      p1ReceivedKick = true;
+      kickReasonReceived = reason;
+    });
+
+    // Re-register player 1
+    p1.emit('register_player', { name: 'ValkyrieKickTest', studentId: 'VALK-KICK', avatar: '⚡' });
+
+    setTimeout(() => {
+      // Trigger Kick All as admin
+      admin.emit('admin_kick_all');
+
+      setTimeout(() => {
+        console.log('\n--- TEST 15: TARGETED PLAYER DISCONNECTION VERIFICATION ---');
+        assert(p1ReceivedKick, 'Standard player received all_players_kicked event');
+        assert(
+          kickReasonReceived === 'The room was cleared by the host.',
+          `Player received notification: "${kickReasonReceived}"`
+        );
+        assert(adminReceivedKick === false, 'ADMIN SOCKET STRICTLY EXEMPTED: Admin received ZERO kick events');
+        assert(admin.connected === true, 'Admin socket remains fully connected, open, and functional');
+
+        console.log('\n================================================================');
+        console.log('🎉 ALL 15 END-TO-END VALIDATION & ADMIN GUARD TESTS PASSED! 🎉');
+        console.log('================================================================\n');
+
+        p1.disconnect();
+        p2.disconnect();
+        p3.disconnect();
+        admin.disconnect();
+
+        setTimeout(() => process.exit(0), 400);
+      }, 500);
+    }, 400);
   }
 });
