@@ -154,6 +154,10 @@ io.on('connection', (socket) => {
     tournament.kickPlayer(socketId);
   });
 
+  socket.on('admin_kick_all', () => {
+    tournament.kickAllPlayers();
+  });
+
   socket.on('admin_force_advance', ({ socketId }) => {
     tournament.forceAdvance(socketId);
   });

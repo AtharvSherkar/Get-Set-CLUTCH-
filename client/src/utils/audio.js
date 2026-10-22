@@ -1,11 +1,13 @@
 // client/src/utils/audio.js
 // High-energy esports Web Audio API Sound Synthesizer
+import { FINALE_RINGTONE_PATH } from '../config/audioConfig';
 
 class AudioManager {
   constructor() {
     this.ctx = null;
     this.muted = false;
     this.ringInterval = null;
+    this.ringAudio = null;
   }
 
   init() {
@@ -199,10 +201,36 @@ class AudioManager {
     });
   }
 
-  startRingtone() {
+  startRingtone(customPath = FINALE_RINGTONE_PATH) {
+    if (this.muted) return;
+    this.stopRingtone();
+
+    const audioPath = customPath || FINALE_RINGTONE_PATH;
+
+    try {
+      const audio = new Audio(audioPath);
+      audio.loop = true;
+      audio.preload = 'auto';
+      audio.volume = 0.85;
+      this.ringAudio = audio;
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('[AudioManager] Ringtone audio play prevented or failed, using synth fallback:', err);
+          this.startSynthRingtone();
+        });
+      }
+    } catch (err) {
+      console.warn('[AudioManager] Failed to create ringtone audio element, using synth fallback:', err);
+      this.startSynthRingtone();
+    }
+  }
+
+  startSynthRingtone() {
     if (this.muted) return;
     this.init();
-    this.stopRingtone();
+    if (!this.ctx) return;
 
     const ringPattern = () => {
       if (!this.ctx || this.muted) return;
@@ -230,6 +258,15 @@ class AudioManager {
   }
 
   stopRingtone() {
+    if (this.ringAudio) {
+      try {
+        this.ringAudio.pause();
+        this.ringAudio.currentTime = 0;
+      } catch (err) {
+        // ignore
+      }
+      this.ringAudio = null;
+    }
     if (this.ringInterval) {
       clearInterval(this.ringInterval);
       this.ringInterval = null;

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { sound } from '../utils/audio';
+import { FINALE_RINGTONE_PATH } from '../config/audioConfig';
 import { Phone, PhoneCall, Sparkles, Trophy, QrCode, ShieldCheck, ArrowRight } from 'lucide-react';
 
 export default function FinaleCallModal({
@@ -18,7 +19,7 @@ export default function FinaleCallModal({
   // Start incoming ringtone on mount if not accepted
   useEffect(() => {
     if (!accepted) {
-      sound.startRingtone();
+      sound.startRingtone(FINALE_RINGTONE_PATH);
     }
     return () => {
       sound.stopRingtone();

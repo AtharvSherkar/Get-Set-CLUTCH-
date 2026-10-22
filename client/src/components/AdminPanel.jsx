@@ -21,6 +21,7 @@ export default function AdminPanel({
   onAddBots,
   onClearBots,
   onKickPlayer,
+  onKickAllPlayers,
   onForceAdvance,
   onTriggerFinale,
   onDeclareChampion,
@@ -29,6 +30,7 @@ export default function AdminPanel({
 }) {
   const [activeTab, setActiveTab] = useState('WAITING'); // 'WAITING' | 'HISTORY' | 'MATRIX' | 'ELIMINATIONS' | 'DUELS'
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmKickAll, setConfirmKickAll] = useState(false);
   const [revealMoves, setRevealMoves] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'FINALIST' | 'SPECTATOR' | 'BOT'
@@ -436,7 +438,7 @@ export default function AdminPanel({
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             {/* Start Round Button */}
             <button
               type="button"
@@ -509,6 +511,42 @@ export default function AdminPanel({
                   type="button"
                   onClick={() => setConfirmReset(false)}
                   className="px-2.5 py-3 rounded-xl bg-zinc-800 text-zinc-300 text-xs cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Prominent Kick All Players / Clear All Contenders Button */}
+            {!confirmKickAll ? (
+              <button
+                type="button"
+                onClick={() => setConfirmKickAll(true)}
+                disabled={players.length === 0}
+                className="py-3 px-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 disabled:opacity-40 disabled:cursor-not-allowed text-rose-300 hover:text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition shadow-md shadow-rose-950/30"
+                title="Remove all active, waiting, and test contenders in one click"
+              >
+                <UserX className="w-4 h-4 text-rose-400" />
+                <span>KICK ALL PLAYERS</span>
+              </button>
+            ) : (
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    sound.playClick();
+                    onKickAllPlayers?.();
+                    setConfirmKickAll(false);
+                  }}
+                  className="flex-1 py-3 px-1 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-[11px] flex items-center justify-center gap-1 cursor-pointer animate-pulse"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>KICK ALL ({players.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmKickAll(false)}
+                  className="px-2.5 py-3 rounded-xl bg-zinc-800 text-zinc-300 text-xs cursor-pointer hover:bg-zinc-700"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -679,6 +717,19 @@ export default function AdminPanel({
                 Real human contenders currently registered and standing by in the waiting lobby (AI bots hidden).
               </p>
             </div>
+            {waitingPlayers.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  sound.playClick();
+                  onKickAllPlayers?.();
+                }}
+                className="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 border border-rose-500/50 text-rose-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition shadow-sm"
+              >
+                <UserX className="w-3.5 h-3.5 text-rose-400" />
+                <span>Clear All Waiting</span>
+              </button>
+            )}
           </div>
 
           {filteredWaiting.length === 0 ? (

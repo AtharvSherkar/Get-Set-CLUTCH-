@@ -12,7 +12,9 @@ export default function RegistrationView({
   serverUrl,
   onUpdateServerUrl,
   tournamentState,
-  currentPlayer
+  currentPlayer,
+  kickNotification,
+  onDismissKickNotification
 }) {
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState(AVATARS[0]);
@@ -77,6 +79,28 @@ export default function RegistrationView({
           </p>
         </div>
       </div>
+
+      {/* Host Removal Notice Banner */}
+      {kickNotification && (
+        <div className="w-full p-4 rounded-2xl bg-red-950/80 border-2 border-red-500/80 text-red-200 text-xs sm:text-sm flex items-center justify-between gap-3 shadow-[0_0_30px_rgba(239,68,68,0.35)] animate-bounce-subtle">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 animate-pulse" />
+            <div>
+              <span className="font-bold text-white block">REMOVED FROM TOURNAMENT</span>
+              <span className="text-zinc-300 text-xs">{kickNotification}</span>
+            </div>
+          </div>
+          {onDismissKickNotification && (
+            <button
+              type="button"
+              onClick={onDismissKickNotification}
+              className="text-zinc-400 hover:text-white text-xs font-bold px-2 py-1 rounded bg-black/40 hover:bg-black/60 transition cursor-pointer"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
         {/* Registration Form Card */}

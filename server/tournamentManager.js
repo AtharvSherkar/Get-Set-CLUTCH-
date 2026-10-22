@@ -17,7 +17,9 @@ export const CountdownBeats = {
   ROCK: 'ROCK',
   PAPER: 'PAPER',
   SCISSOR: 'SCISSOR',
-  CLUTCH: 'CLUTCH'
+  CLUTCH: 'CLUTCH',
+  DECISION: 'DECISION',
+  LOCKED: 'LOCKED'
 };
 
 const BOT_USERNAMES = [
@@ -43,6 +45,10 @@ export class TournamentManager {
     this.players = new Map(); // socketId -> Player
     this.matches = []; // current round matches
     this.countdownTimer = null;
+    this.selectionInterval = null;
+    this.selectionTimeLeft = 0;
+    this.selectionDuration = 5000;
+    this.selectionDeadline = null;
     this.currentBeat = CountdownBeats.READY;
     this.beatTimeRemaining = 0;
     this.isPaused = false;
@@ -187,17 +193,72 @@ export class TournamentManager {
     this.broadcastState();
   }
 
-  kickPlayer(socketId) {
+  kickPlayer(socketId, reason = 'You were removed from the tournament by the host.') {
     const p = this.players.get(socketId);
     if (p) {
       this.players.delete(socketId);
       this.eliminations = this.eliminations.filter(e => e.playerId !== socketId);
       this.finalists = this.finalists.filter(f => f.id !== socketId);
       if (this.champion && this.champion.id === socketId) this.champion = null;
+
+      // Real-time socket event notifying the specific kicked player
+      this.io.to(socketId).emit('player_kicked', {
+        reason,
+        socketId
+      });
+
+      // Update any active match involving the kicked player
+      for (const m of this.matches) {
+        if ((m.player1.id === socketId || m.player2.id === socketId) && m.status === 'IN_PROGRESS') {
+          m.status = 'COMPLETED';
+          if (m.player1.id === socketId) {
+            m.result = 'P2_WIN';
+            m.winnerId = m.player2.id;
+            m.loserId = socketId;
+          } else {
+            m.result = 'P1_WIN';
+            m.winnerId = m.player1.id;
+            m.loserId = socketId;
+          }
+        }
+      }
+
       this.broadcastState();
       return true;
     }
     return false;
+  }
+
+  kickAllPlayers(reason = 'All players were removed from the tournament by the host.') {
+    // Broadcast real-time kick event to all connected sockets
+    this.io.emit('all_players_kicked', { reason });
+    this.io.emit('player_kicked', { reason });
+
+    // Clean up all player registrations and tournament brackets
+    this.players.clear();
+    this.eliminations = [];
+    this.finalists = [];
+    this.matches = [];
+    this.champion = null;
+    this.round = 0;
+    this.status = TournamentStatus.REGISTRATION;
+    this.currentBeat = CountdownBeats.READY;
+    this.isPaused = false;
+    this.roundHistory = [];
+
+    if (this.countdownTimer) {
+      clearTimeout(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+    if (this.selectionInterval) {
+      clearInterval(this.selectionInterval);
+      this.selectionInterval = null;
+    }
+    this.selectionTimeLeft = 0;
+    this.selectionDeadline = null;
+
+    this.broadcastState();
+    return true;
   }
 
   forceAdvance(socketId) {
@@ -346,6 +407,7 @@ export class TournamentManager {
 
   submitMove(socketId, move) {
     if (!['rock', 'paper', 'scissors'].includes(move?.toLowerCase())) return;
+    if (this.currentBeat === CountdownBeats.LOCKED || this.status === TournamentStatus.EVALUATING || this.status === TournamentStatus.ROUND_COMPLETE) return;
 
     const normalizedMove = move.toLowerCase();
     const match = this.matches.find(m => m.player1.id === socketId || m.player2.id === socketId);
@@ -359,11 +421,14 @@ export class TournamentManager {
 
     // Acknowledge move lock to the user (without revealing opponent's move)
     this.io.to(socketId).emit('move_locked', { move: normalizedMove });
+    this.broadcastState();
   }
 
   beginCountdown() {
     this.status = TournamentStatus.COUNTDOWN;
     this.currentBeat = CountdownBeats.ROCK;
+    this.selectionTimeLeft = 0;
+    this.selectionDeadline = null;
     this.broadcastState();
 
     // Synchronized 4-beat "Rock, Paper, Scissor, Clutch!" sequence
@@ -395,13 +460,8 @@ export class TournamentManager {
           duration,
           roundStartTimestamp,
           beatStartTimestamp,
-          isSelectionLocked: beat === CountdownBeats.CLUTCH
+          isSelectionLocked: false // Input unlocked so players can pre-select or prepare
         });
-
-        // If it's the CLUTCH beat, bot selections and locks execute!
-        if (beat === CountdownBeats.CLUTCH) {
-          this.executeBotMovesAndLocks();
-        }
 
         // Real-time state synchronization broadcast on EVERY single beat
         this.broadcastState();
@@ -409,12 +469,87 @@ export class TournamentManager {
         currentStep++;
         this.countdownTimer = setTimeout(executeStep, duration);
       } else {
-        // Countdown completed, proceed to evaluation
-        this.evaluateRoundResults();
+        // Countdown (ROCK -> PAPER -> SCISSOR -> CLUTCH!) completed!
+        // Launch guaranteed 5-second post-countdown selection window
+        this.startSelectionWindow();
       }
     };
 
     executeStep();
+  }
+
+  startSelectionWindow() {
+    if (this.countdownTimer) {
+      clearTimeout(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+    if (this.selectionInterval) {
+      clearInterval(this.selectionInterval);
+      this.selectionInterval = null;
+    }
+
+    this.currentBeat = CountdownBeats.DECISION;
+    this.selectionDuration = 5000;
+    this.selectionDeadline = Date.now() + 5000;
+    this.selectionTimeLeft = 5;
+
+    // Broadcast selection window open
+    this.io.emit('selection_window_start', {
+      duration: 5000,
+      deadline: this.selectionDeadline,
+      seconds: 5,
+      round: this.round
+    });
+
+    this.broadcastState();
+
+    let remaining = 5;
+    this.selectionInterval = setInterval(() => {
+      if (this.isPaused) return;
+
+      remaining -= 1;
+      this.selectionTimeLeft = Math.max(0, remaining);
+
+      this.io.emit('selection_tick', {
+        remaining: this.selectionTimeLeft,
+        duration: 5000,
+        deadline: this.selectionDeadline
+      });
+
+      this.broadcastState();
+
+      if (remaining <= 0) {
+        if (this.selectionInterval) {
+          clearInterval(this.selectionInterval);
+          this.selectionInterval = null;
+        }
+        this.completeSelectionWindow();
+      }
+    }, 1000);
+  }
+
+  completeSelectionWindow() {
+    if (this.selectionInterval) {
+      clearInterval(this.selectionInterval);
+      this.selectionInterval = null;
+    }
+
+    this.currentBeat = CountdownBeats.LOCKED;
+    this.selectionTimeLeft = 0;
+    this.selectionDeadline = null;
+
+    this.io.emit('selection_window_end', {
+      round: this.round
+    });
+
+    // Execute bot moves and timeout default selections
+    this.executeBotMovesAndLocks();
+    this.broadcastState();
+
+    // Brief delay to display LOCKED state visually before revealing outcomes
+    setTimeout(() => {
+      this.evaluateRoundResults();
+    }, 300);
   }
 
   executeBotMovesAndLocks() {
@@ -672,6 +807,12 @@ export class TournamentManager {
       clearTimeout(this.countdownTimer);
       this.countdownTimer = null;
     }
+    if (this.selectionInterval) {
+      clearInterval(this.selectionInterval);
+      this.selectionInterval = null;
+    }
+    this.selectionTimeLeft = 0;
+    this.selectionDeadline = null;
     this.status = TournamentStatus.REGISTRATION;
     this.round = 0;
     this.currentBeat = CountdownBeats.READY;
@@ -754,6 +895,9 @@ export class TournamentManager {
       status: this.status,
       round: this.round,
       currentBeat: this.currentBeat,
+      selectionTimeLeft: this.selectionTimeLeft || 0,
+      selectionDuration: this.selectionDuration || 5000,
+      selectionDeadline: this.selectionDeadline || null,
       isPaused: this.isPaused,
       autoAdvance: this.autoAdvance,
       serverLanIp: this.serverLanIp,
@@ -782,8 +926,8 @@ export class TournamentManager {
         player2: m.player2,
         status: m.status,
         result: m.result,
-        p1Move: this.status === TournamentStatus.EVALUATING || this.status === TournamentStatus.ROUND_COMPLETE || (this.status === TournamentStatus.COUNTDOWN && this.currentBeat === CountdownBeats.CLUTCH) ? m.p1Move : (m.p1Move ? 'LOCKED' : null),
-        p2Move: this.status === TournamentStatus.EVALUATING || this.status === TournamentStatus.ROUND_COMPLETE || (this.status === TournamentStatus.COUNTDOWN && this.currentBeat === CountdownBeats.CLUTCH) ? m.p2Move : (m.p2Move ? 'LOCKED' : null),
+        p1Move: this.status === TournamentStatus.EVALUATING || this.status === TournamentStatus.ROUND_COMPLETE ? m.p1Move : (m.p1Move ? 'LOCKED' : null),
+        p2Move: this.status === TournamentStatus.EVALUATING || this.status === TournamentStatus.ROUND_COMPLETE ? m.p2Move : (m.p2Move ? 'LOCKED' : null),
         winnerId: m.winnerId,
         loserId: m.loserId
       })),

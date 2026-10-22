@@ -502,8 +502,8 @@ export default function HandIllustration({
       }`}
     >
       <div
-        className={`w-36 h-48 sm:w-48 sm:h-64 transition-all duration-200 ${
-          isClutch
+        className={`w-24 h-32 xs:w-28 xs:h-36 sm:w-36 sm:h-48 md:w-44 md:h-56 max-h-[20svh] max-w-[38vw] transition-all duration-200 ${
+          (isClutch || isShaking)
             ? isTop
               ? 'rival-clutch-glow scale-[1.03]'
               : 'player-clutch-glow scale-[1.03]'
@@ -514,13 +514,11 @@ export default function HandIllustration({
       </div>
 
       {label && (
-        <div
-          className={`mt-2 px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase border shadow-lg font-['Space_Grotesk',sans-serif] ${
-            isTop
-              ? 'rotate-180 bg-red-950/90 border-red-500/60 text-red-300 shadow-red-900/40'
-              : 'bg-orange-950/90 border-[#FF5500]/60 text-orange-300 shadow-orange-950/40'
-          }`}
-        >
+        <div className={`mt-1 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold tracking-wider uppercase border font-['Space_Grotesk',sans-serif] ${
+          isTop
+            ? 'rotate-180 bg-red-950/80 border-red-500/40 text-red-300'
+            : 'bg-orange-950/80 border-[#FF5500]/50 text-orange-300'
+        }`}>
           {label}
         </div>
       )}

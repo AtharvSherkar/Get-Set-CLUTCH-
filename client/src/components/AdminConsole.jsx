@@ -15,12 +15,14 @@ export default function AdminConsole({
   onAddBots,
   onClearBots,
   onKickPlayer,
+  onKickAllPlayers,
   onForceAdvance,
   onTriggerFinale,
   onResetTournament,
   onToggleAutoAdvance
 }) {
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmKickAll, setConfirmKickAll] = useState(false);
 
   if (!isOpen) return null;
 
@@ -165,6 +167,41 @@ export default function AdminConsole({
                 <button
                   type="button"
                   onClick={() => setConfirmReset(false)}
+                  className="px-3 py-3 rounded-xl bg-zinc-800 text-zinc-300 text-xs cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Kick All Players */}
+            {!confirmKickAll ? (
+              <button
+                type="button"
+                onClick={() => setConfirmKickAll(true)}
+                disabled={players.length === 0}
+                className="py-3 px-3 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30 text-rose-300 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <UserMinus className="w-4 h-4 text-rose-400" />
+                <span>KICK ALL PLAYERS</span>
+              </button>
+            ) : (
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    sound.playClick();
+                    onKickAllPlayers?.();
+                    setConfirmKickAll(false);
+                  }}
+                  className="flex-1 py-3 px-2 rounded-xl bg-rose-600 text-white font-bold text-xs flex items-center justify-center cursor-pointer animate-pulse"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>KICK ALL ({players.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmKickAll(false)}
                   className="px-3 py-3 rounded-xl bg-zinc-800 text-zinc-300 text-xs cursor-pointer"
                 >
                   <X className="w-4 h-4" />

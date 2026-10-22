@@ -59,6 +59,7 @@ export default function App() {
   const [activeView, setActiveView] = useState('PLAYER'); // 'PLAYER' | 'ADMIN' | 'PROJECTOR'
   const [reactions, setReactions] = useState([]);
   const [cheers, setCheers] = useState([]);
+  const [kickNotification, setKickNotification] = useState(null);
 
   const socketRef = useRef(null);
 
@@ -152,6 +153,26 @@ export default function App() {
       setCheers((prev) => [...prev.slice(-30), cheer]);
     });
 
+    s.on('player_kicked', ({ reason } = {}) => {
+      sessionStorage.removeItem('clutch_player');
+      setCurrentPlayer(null);
+      setKickNotification(reason || 'You were removed from the tournament by the host.');
+      try {
+        window.history.pushState(null, '', '/join');
+      } catch (e) {}
+      setActiveView('PLAYER');
+    });
+
+    s.on('all_players_kicked', ({ reason } = {}) => {
+      sessionStorage.removeItem('clutch_player');
+      setCurrentPlayer(null);
+      setKickNotification(reason || 'All players were removed from the tournament by the host.');
+      try {
+        window.history.pushState(null, '', '/join');
+      } catch (e) {}
+      setActiveView('PLAYER');
+    });
+
     return () => {
       s.disconnect();
     };
@@ -223,6 +244,7 @@ export default function App() {
   const handleAddBots = (count) => socket?.emit('admin_add_bots', { count });
   const handleClearBots = () => socket?.emit('admin_clear_bots');
   const handleKickPlayer = (socketId) => socket?.emit('admin_kick_player', { socketId });
+  const handleKickAllPlayers = () => socket?.emit('admin_kick_all');
   const handleForceAdvance = (socketId) => socket?.emit('admin_force_advance', { socketId });
   const handleTriggerFinale = () => socket?.emit('admin_trigger_finale');
   const handleDeclareChampion = (championId) => socket?.emit('admin_declare_champion', { championId });
@@ -241,6 +263,15 @@ export default function App() {
     (f) => f.id === currentPlayer?.id
   );
 
+  const isCombatView =
+    activeView === 'PLAYER' &&
+    currentPlayer?.status === 'active' &&
+    currentMatch &&
+    (status === 'MATCHMAKING' ||
+      status === 'COUNTDOWN' ||
+      status === 'LOCKED' ||
+      status === 'EVALUATING');
+
   return (
     <div className="min-h-screen bg-[#09090B] text-white flex flex-col font-['Outfit',sans-serif] selection:bg-[#FF5500] selection:text-white">
       {/* Top Navigation Bar with View Switcher */}
@@ -257,7 +288,7 @@ export default function App() {
       />
 
       {/* Main Body View Switching */}
-      <main className="flex-1 flex flex-col items-center justify-start pb-8">
+      <main className={`flex-1 flex flex-col items-center justify-start w-full ${isCombatView ? 'pb-0 overflow-hidden' : 'pb-8'}`}>
         {/* VIEW 1: ORGANIZER ADMIN PANEL */}
         {activeView === 'ADMIN' && (
           <AdminPanel
@@ -267,6 +298,7 @@ export default function App() {
             onAddBots={handleAddBots}
             onClearBots={handleClearBots}
             onKickPlayer={handleKickPlayer}
+            onKickAllPlayers={handleKickAllPlayers}
             onForceAdvance={handleForceAdvance}
             onTriggerFinale={handleTriggerFinale}
             onDeclareChampion={handleDeclareChampion}
@@ -294,6 +326,8 @@ export default function App() {
                 onUpdateServerUrl={handleUpdateServerUrl}
                 tournamentState={tournamentState}
                 currentPlayer={currentPlayer}
+                kickNotification={kickNotification}
+                onDismissKickNotification={() => setKickNotification(null)}
               />
             ) : (
               /* If player is registered */
