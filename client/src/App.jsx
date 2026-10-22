@@ -63,6 +63,7 @@ export default function App() {
 
   const socketRef = useRef(null);
   const activeViewRef = useRef(activeView);
+  const registerCallbacksRef = useRef({});
 
   useEffect(() => {
     activeViewRef.current = activeView;
@@ -163,7 +164,18 @@ export default function App() {
     s.on('registered_success', (player) => {
       setCurrentPlayer(player);
       sessionStorage.setItem('clutch_player', JSON.stringify(player));
+      try {
+        window.history.pushState(null, '', '/waiting-room');
+      } catch (e) {}
     });
+
+    const handleRegisterError = ({ message, error } = {}) => {
+      const errMsg = message || error || 'This name is already taken. Please choose a different nickname!';
+      registerCallbacksRef.current?.onError?.(errMsg);
+    };
+
+    s.on('register_error', handleRegisterError);
+    s.on('registration_error', handleRegisterError);
 
     s.on('new_reaction', (reaction) => {
       if (!reaction || !reaction.id) return;
@@ -219,20 +231,24 @@ export default function App() {
 
   // User actions
   const handleRegister = (data, callbacks = {}) => {
+    registerCallbacksRef.current = callbacks;
+
     if (socket && socket.connected) {
-      socket.emit('register_player', data);
-      try {
-        window.history.pushState(null, '', '/waiting-room');
-      } catch (e) {}
+      socket.emit('register_player', data, (response) => {
+        if (response && !response.success && response.error) {
+          callbacks.onError?.(response.error);
+        }
+      });
       return;
     }
 
     if (socket) {
       const onConnectOnce = () => {
-        socket.emit('register_player', data);
-        try {
-          window.history.pushState(null, '', '/waiting-room');
-        } catch (e) {}
+        socket.emit('register_player', data, (response) => {
+          if (response && !response.success && response.error) {
+            callbacks.onError?.(response.error);
+          }
+        });
       };
       socket.once('connect', onConnectOnce);
       setTimeout(() => {

@@ -23,23 +23,38 @@ export default function RegistrationView({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!name.trim()) {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
       setError('Please enter a display name or gamer tag');
       return;
     }
+
+    // Instant Client-Side Duplicate Name Validation against current room contenders
+    const existingPlayers = tournamentState?.players || [];
+    const nameLower = trimmedName.toLowerCase();
+    const isDuplicate = existingPlayers.some(
+      (p) => p.name && p.name.trim().toLowerCase() === nameLower
+    );
+
+    if (isDuplicate) {
+      setError('This name is already taken. Please choose a different nickname!');
+      sound.playClick();
+      return;
+    }
+
     setError('');
     sound.playClick();
     setIsSubmitting(true);
 
     onRegister(
       {
-        name: name.trim(),
+        name: trimmedName,
         avatar
       },
       {
         onError: (msg) => {
           setIsSubmitting(false);
-          setError(msg || 'Failed to enter arena.');
+          setError(msg || 'This name is already taken. Please choose a different nickname!');
         }
       }
     );

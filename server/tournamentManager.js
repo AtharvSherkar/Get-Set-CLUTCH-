@@ -98,18 +98,40 @@ export class TournamentManager {
   }
 
   registerPlayer(socketId, { name, studentId, avatar, isBot = false }) {
+    const trimmedName = (name || (isBot ? `Bot_${Math.floor(1000 + Math.random() * 9000)}` : `Contender_${Math.floor(1000 + Math.random() * 9000)}`)).trim();
+    if (!trimmedName) {
+      return { error: 'Please enter a display name or gamer tag.' };
+    }
+
+    const nameLower = trimmedName.toLowerCase();
+    const cleanStudentId = studentId ? String(studentId).trim() : null;
+    const studentIdLower = cleanStudentId ? cleanStudentId.toLowerCase() : null;
+
+    // Reject registration if another active player already uses this exact name (case-insensitive and trimmed)
+    for (const [id, p] of this.players.entries()) {
+      if (id !== socketId) {
+        if (p.name && p.name.trim().toLowerCase() === nameLower) {
+          return { error: 'This name is already taken. Please choose a different nickname!' };
+        }
+        if (studentIdLower && p.studentId && p.studentId.trim().toLowerCase() === studentIdLower) {
+          return { error: 'This student ID is already registered. Please choose a different nickname!' };
+        }
+      }
+    }
+
     const existing = this.players.get(socketId);
     if (existing) {
-      existing.name = name || existing.name;
-      existing.studentId = studentId || existing.studentId;
-      existing.avatar = avatar || existing.avatar;
+      existing.name = trimmedName;
+      if (cleanStudentId) existing.studentId = cleanStudentId;
+      if (avatar) existing.avatar = avatar;
+      this.broadcastState();
       return existing;
     }
 
     const player = {
       id: socketId,
-      name: (name || `Contender_${Math.floor(1000 + Math.random() * 9000)}`).trim(),
-      studentId: studentId ? String(studentId).trim() : `STU-${Math.floor(1000 + Math.random() * 9000)}`,
+      name: trimmedName,
+      studentId: cleanStudentId || `STU-${Math.floor(1000 + Math.random() * 9000)}`,
       avatar: avatar || '🔥',
       status: 'active', // 'active' | 'spectator'
       isBot: Boolean(isBot),
@@ -197,10 +219,15 @@ export class TournamentManager {
   addTestBots(count = 8) {
     for (let i = 0; i < count; i++) {
       const botId = `bot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const name = BOT_USERNAMES[(this.players.size + i) % BOT_USERNAMES.length] || `Bot_${i + 1}`;
+      let baseName = BOT_USERNAMES[(this.players.size + i) % BOT_USERNAMES.length] || `Bot_${i + 1}`;
+      let candidateName = baseName;
+      let suffix = 1;
+      while (Array.from(this.players.values()).some(p => p.name.toLowerCase() === candidateName.toLowerCase())) {
+        candidateName = `${baseName}_${suffix++}`;
+      }
       const avatars = ['🤖', '⚡', '🦊', '🔥', '🐺', '⚔️', '🦅', '🎯'];
       this.registerPlayer(botId, {
-        name: `${name}`,
+        name: candidateName,
         studentId: `BOT-${Math.floor(100 + Math.random() * 900)}`,
         avatar: avatars[Math.floor(Math.random() * avatars.length)],
         isBot: true

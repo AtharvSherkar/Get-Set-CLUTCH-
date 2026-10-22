@@ -8,11 +8,23 @@ const admin = io('http://localhost:3001');
 const p1 = io('http://localhost:3001');
 const p2 = io('http://localhost:3001');
 const p3 = io('http://localhost:3001');
+const pDup = io('http://localhost:3001');
 
 let step = 0;
 let p1MatchId = null;
 let p2MatchId = null;
 let p3MatchId = null;
+
+let dupErrorReceived = false;
+let dupErrorMessage = null;
+pDup.on('register_error', ({ message } = {}) => {
+  dupErrorReceived = true;
+  dupErrorMessage = message;
+});
+pDup.on('registration_error', ({ message } = {}) => {
+  dupErrorReceived = true;
+  dupErrorMessage = message;
+});
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -47,9 +59,28 @@ admin.on('tournament_state', (state) => {
     assert(state.waitingPlayers.some(p => p.name === 'TitanRox'), 'TitanRox is in waiting list');
     assert(state.waitingPlayers.some(p => p.name === 'Specter'), 'Specter is in waiting list');
 
-    // STEP 1: Add 8 test bots and verify bots are NOT shown in waiting lobby
-    console.log('\n--- TEST 2: TEST BOTS ARE HIDDEN FROM WAITING LOBBY ---');
-    admin.emit('admin_add_bots', { count: 8 });
+    // Duplicate Player Name Enforcement
+    console.log('\n--- TEST 1B: DUPLICATE PLAYER NAME ENFORCEMENT ---');
+    pDup.emit('register_player', { name: '  valkyrie  ', studentId: 'VALK-DUP', avatar: '💀' }, (response) => {
+      assert(response && response.success === false, 'Duplicate player join request was rejected via ack');
+      assert(
+        response.error === 'This name is already taken. Please choose a different nickname!',
+        `Ack error message: "${response.error}"`
+      );
+    });
+
+    pDup.once('register_error', ({ message } = {}) => {
+      assert(
+        message === 'This name is already taken. Please choose a different nickname!',
+        `Socket event error message: "${message}"`
+      );
+      assert(!state.waitingPlayers.some(p => p.studentId === 'VALK-DUP'), 'Duplicate player excluded from lobby and tournament state');
+      pDup.disconnect();
+
+      // STEP 1: Add 8 test bots and verify bots are NOT shown in waiting lobby
+      console.log('\n--- TEST 2: TEST BOTS ARE HIDDEN FROM WAITING LOBBY ---');
+      admin.emit('admin_add_bots', { count: 8 });
+    });
   } else if (step === 1 && state.stats.totalPlayers === 11) {
     step = 2;
     assert(state.stats.totalPlayers === 11, 'Total players is 11 (3 humans + 8 bots)');

@@ -111,12 +111,24 @@ io.on('connection', (socket) => {
   });
 
   // Player Registration
-  socket.on('register_player', (data) => {
+  socket.on('register_player', (data, callback) => {
+    const result = tournament.registerPlayer(socket.id, data || {});
+    if (result && result.error) {
+      socket.emit('register_error', { message: result.error, error: result.error });
+      socket.emit('registration_error', { message: result.error, error: result.error });
+      if (typeof callback === 'function') {
+        callback({ success: false, error: result.error });
+      }
+      return;
+    }
+
     socket.data = socket.data || {};
     socket.data.role = 'player';
     socket.join('players');
-    const player = tournament.registerPlayer(socket.id, data || {});
-    socket.emit('registered_success', player);
+    socket.emit('registered_success', result);
+    if (typeof callback === 'function') {
+      callback({ success: true, player: result });
+    }
   });
 
   // Reconnect Handling
